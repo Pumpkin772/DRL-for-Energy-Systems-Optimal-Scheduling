@@ -26,7 +26,7 @@ class DataManager():
     def get_pv_data(self,month,day,day_time):return self.PV_Generation[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+day_time]
     def get_price_data(self,month,day,day_time):return self.Prices[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+day_time]
     def get_electricity_cons_data(self,month,day,day_time):return self.Electricity_Consumption[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+day_time]
-    # get series data for one episode
+    # get series data for one episode 得到一天的数据
     def get_series_pv_data(self,month,day): return self.PV_Generation[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24:(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+24]
     def get_series_price_data(self,month,day):return self.Prices[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24:(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+24]
     def get_series_electricity_cons_data(self,month,day):return self.Electricity_Consumption[(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24:(sum(Constant.MONTHS_LEN[:month-1])+day-1)*24+24]
@@ -174,7 +174,7 @@ class ESSEnv(gym.Env):
         netload=current_obs[3]
         price=current_obs[1]
 
-        unbalance=actual_production-netload
+        unbalance=actual_production-netload #unbanlce是需要从电网导入的功率，在执行任何操作后，从主网络导出/导入电力以维持电力平衡
 
         reward=0
         excess_penalty=0
@@ -209,8 +209,8 @@ class ESSEnv(gym.Env):
         self.unbalance=unbalance
         self.real_unbalance=self.shedding+self.excess
         final_step_outputs=[self.dg1.current_output,self.dg2.current_output,self.dg3.current_output,self.battery.current_capacity]
-        self.current_time+=1
-        finish=(self.current_time==self.episode_length)
+        self.current_time+=1 #小时数+1
+        finish=(self.current_time==self.episode_length) #每个episode为一天
         if finish:
             self.final_step_outputs=final_step_outputs
             self.current_time=0

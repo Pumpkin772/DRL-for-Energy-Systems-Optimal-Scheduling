@@ -1,7 +1,8 @@
 from net import *
-import os 
-import numpy.random as rd 
+import os
+import numpy.random as rd
 from copy import deepcopy
+
 
 class AgentBase:
     def __init__(self):
@@ -32,22 +33,24 @@ class AgentBase:
 
     def select_action(self, state) -> np.ndarray:
         states = torch.as_tensor((state,), dtype=torch.float32, device=self.device)
-        action = self.act(states)[0]
+        action = self.act(states)[0] # 降二维到一维
         action = (action + torch.randn_like(action) * self.explore_noise).clamp(-1, 1)
-        return action.detach().cpu().numpy()
+        return action.detach().cpu().numpy()  # 转化为numpy类型，因为需要与env交互
+
     def explore_env(self, env, target_step):
         trajectory = list()
 
         state = self.state
         for _ in range(target_step):
             action = self.select_action(state)
-            
-            state,next_state, reward, done, = env.step(action)
+
+            state, next_state, reward, done, = env.step(action)
 
             trajectory.append((state, (reward, done, *action)))
             state = env.reset() if done else next_state
         self.state = state
         return trajectory
+
     @staticmethod
     def optim_update(optimizer, objective):
         optimizer.zero_grad()
@@ -76,6 +79,7 @@ class AgentBase:
                 save_path = f"{cwd}/{name}.pth"
                 load_torch_file(obj, save_path) if os.path.isfile(save_path) else None
 
+
 class AgentDDPG(AgentBase):
     def __init__(self):
         super().__init__()
@@ -88,16 +92,17 @@ class AgentDDPG(AgentBase):
         buffer.update_now_len()
         obj_critic = obj_actor = None
         for _ in range(int(buffer.now_len / batch_size * repeat_times)):
-            obj_critic, state = self.get_obj_critic(buffer, batch_size)#critic loss 
+            obj_critic, state = self.get_obj_critic(buffer, batch_size)  # critic loss
             self.optim_update(self.cri_optim, obj_critic)
             self.soft_update(self.cri_target, self.cri, soft_update_tau)
 
             action_pg = self.act(state)  # policy gradient
-            obj_actor = -self.cri(state, action_pg).mean()# actor loss, makes it bigger
+            obj_actor = -self.cri(state, action_pg).mean()  # actor loss, makes it bigger
             self.optim_update(self.act_optim, obj_actor)
             self.soft_update(self.act_target, self.act, soft_update_tau)
-        return obj_actor.item(), obj_critic.item()
+        return obj_actor.item(), obj_critic.item()  # 从torch中取出标量值
 
+    # 得到Q函数与target的损失函数
     def get_obj_critic(self, buffer, batch_size) -> (torch.Tensor, torch.Tensor):
         with torch.no_grad():
             reward, mask, action, state, next_s = buffer.sample_batch(batch_size)
@@ -106,6 +111,7 @@ class AgentDDPG(AgentBase):
         q_value = self.cri(state, action)
         obj_critic = self.criterion(q_value, q_label)
         return obj_critic, state
+
 
 class AgentTD3(AgentBase):
     def __init__(self):
@@ -143,6 +149,7 @@ class AgentTD3(AgentBase):
         obj_critic = self.criterion(q1, q_label) + self.criterion(q2, q_label)  # twin critics
         return obj_critic, state
 
+
 class AgentSAC(AgentBase):
     def __init__(self):
         super().__init__()
@@ -174,8 +181,8 @@ class AgentSAC(AgentBase):
         state = self.state
         for _ in range(target_step):
             action = self.select_action(state)
-            
-            state,next_state, reward, done, = env.step(action)
+
+            state, next_state, reward, done, = env.step(action)
 
             trajectory.append((state, (reward, done, *action)))
             state = env.reset() if done else next_state
@@ -214,6 +221,7 @@ class AgentSAC(AgentBase):
             self.soft_update(self.act_target, self.act, soft_update_tau)
 
         return obj_critic.item(), obj_actor.item(), alpha.item()
+
 
 class AgentPPO(AgentBase):
     def __init__(self):
@@ -324,8 +332,3 @@ class AgentPPO(AgentBase):
             buf_advantage[i] = ten_reward[i] + ten_mask[i] * (pre_advantage - ten_value[i])  # fix a bug here
             pre_advantage = ten_value[i] + buf_advantage[i] * self.lambda_gae_adv
         return buf_r_sum, buf_advantage
-
-
-
-
-

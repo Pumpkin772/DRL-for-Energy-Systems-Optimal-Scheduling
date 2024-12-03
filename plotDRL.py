@@ -7,8 +7,8 @@ import pandas as pd
 import os
 from tools import Arguments
 import matplotlib
-matplotlib.rc('text', usetex=True)
-pd.options.display.notebook_repr_html=False  
+matplotlib.rc('text', usetex=True) # 在绘图时使用 LaTeX 渲染文本
+pd.options.display.notebook_repr_html=False # 在 Jupyter Notebook 中显示数据帧时，将使用普通的文本格式，而不是 HTML
 
 def plot_evaluation_information(datasource,directory):
     sns.set_theme(style='whitegrid')
@@ -77,7 +77,7 @@ def plot_evaluation_information(datasource,directory):
     axs[0,1].plot(eval_data['time_step'],eval_data['soc'],drawstyle='steps-mid',label='SOC',color='grey')
     
     # axs[0,1].legend(fontsize=12, frameon=False,labelspacing=0.3,loc=(0.5, 1.05))
-    # plt.show()
+    plt.show()
     # plt.close()
     fig.savefig(f"{directory}/Evoluation Information.svg", format='svg', dpi=600, bbox_inches='tight')
     print('the evaluation figure have been plot and saved')

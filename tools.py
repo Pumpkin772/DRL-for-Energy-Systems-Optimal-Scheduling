@@ -1,7 +1,7 @@
-import torch 
-import pandas as pd 
+import torch
+import pandas as pd
 import numpy.random as rd
-import os 
+import os
 import numpy as np
 from pyomo.core.base.config import default_pyomo_config
 from pyomo.core.base.piecewise import Bound
@@ -107,7 +107,7 @@ class Arguments:
         self.num_threads = 8  # cpu_num for evaluate model, torch.set_num_threads(self.num_threads)
 
         '''Arguments for training'''
-        self.num_episode=2000
+        self.num_episode=20
         self.gamma = 0.995  # discount factor of future rewards
         # self.reward_scale = 1  # an approximate target reward usually be closed to 256
         self.learning_rate = 2 ** -14  # 2 ** -14 ~= 6e-5
@@ -124,14 +124,15 @@ class Arguments:
         # self.eval_gap = 2 ** 6  # evaluate the agent per eval_gap seconds
         # self.eval_times = 2  # number of times that get episode return in first
         self.random_seed = 0  # initialize random seed in self.init_before_training()
-        self.random_seed_list=[1234,2234,3234,4234,5234]
+        #self.random_seed_list=[1234,2234,3234,4234,5234]
+        self.random_seed_list = [1234]
         '''Arguments for save and plot issues'''
         self.train=True
         self.save_network=True
         self.test_network=True
         self.save_test_data=True
-        self.compare_with_pyomo=True
-        self.plot_on=True 
+        self.compare_with_pyomo=False
+        self.plot_on=True
 
     def init_before_training(self, if_main):
         if self.cwd is None:
@@ -143,9 +144,10 @@ class Arguments:
             if self.if_remove is None:
                 self.if_remove = bool(input(f"| PRESS 'y' to REMOVE: {self.cwd}? ") == 'y')
             elif self.if_remove:
+                # 删除工作目录及其所有内容ignore_errors=True参数意味着如果删除操作失败，程序不会抛出异常
                 shutil.rmtree(self.cwd, ignore_errors=True)
                 print(f"| Remove cwd: {self.cwd}")
-            os.makedirs(self.cwd, exist_ok=True)
+            os.makedirs(self.cwd, exist_ok=True) # 创建新的工作目录，exist_ok=True 参数意味着如果目录已经存在，程序不会抛出异常
 
         np.random.seed(self.random_seed)
         torch.manual_seed(self.random_seed)
@@ -169,12 +171,12 @@ def test_one_episode(env, act, device):
     record_init_info.append([env.month,env.day,env.current_time,env.battery.current_capacity])
     print(f'current testing month is {env.month}, day is {env.day},initial_soc is {env.battery.current_capacity}' )
     for i in range(24):
-        s_tensor = torch.as_tensor((state,), device=device)
-        a_tensor = act(s_tensor)  
+        s_tensor = torch.as_tensor((state,), device=device) #(state,)确保 state 被正确地处理为一个元组,并且自动升维
+        a_tensor = act(s_tensor)
         action = a_tensor.detach().cpu().numpy()[0]  # not need detach(), because with torch.no_grad() outside
         real_action=action
         state,next_state,reward, done = env.step(action)
-        
+
         record_system_info.append([state[0],state[1],state[3],action,real_action,env.battery.SOC(),env.battery.energy_change,next_state[4],next_state[5],next_state[6],env.unbalance,env.operation_cost])
 
         record_state.append(state)
@@ -224,7 +226,8 @@ class ReplayBuffer:
             raise ValueError('state_dim')
 
     def extend_buffer(self, state, other):  # CPU array to CPU array
-        size = len(other)
+        # other = (reward, mask, action) mask = (1 - done) * gamma
+        size = len(other) # size是要加入的元组(state,(reward, mask, action))个数
         next_idx = self.next_idx + size
 
         if next_idx > self.max_len:
@@ -243,11 +246,11 @@ class ReplayBuffer:
     def sample_batch(self, batch_size) -> tuple:
         indices = rd.randint(self.now_len - 1, size=batch_size)
         r_m_a = self.buf_other[indices]
-        return (r_m_a[:, 0:1],
+        return (r_m_a[:, 0:1],# r_m_a[:, 0:1]能够转化为一个（n,1）二维向量，r_m_a[:, 0]能够转化为一个（n,）一维向量
                 r_m_a[:, 1:2],
                 r_m_a[:, 2:],
                 self.buf_state[indices],
-                self.buf_state[indices + 1])
+                self.buf_state[indices + 1])# return (reward,mask,action,state,next_state)
 
     def update_now_len(self):
         self.now_len = self.max_len if self.if_full else self.next_idx
