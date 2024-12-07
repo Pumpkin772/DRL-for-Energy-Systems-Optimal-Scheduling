@@ -7,19 +7,19 @@ import pandas as pd
 import os
 from tools import Arguments
 import matplotlib
-matplotlib.rc('text', usetex=True) # 在绘图时使用 LaTeX 渲染文本
+matplotlib.rc('text', usetex=False) # 在绘图时是否使用 LaTeX 渲染文本
 pd.options.display.notebook_repr_html=False # 在 Jupyter Notebook 中显示数据帧时，将使用普通的文本格式，而不是 HTML
 
 def plot_evaluation_information(datasource,directory):
-    sns.set_theme(style='whitegrid')
+    sns.set_theme(style='whitegrid') # 设置图表主题
 
     with open(datasource,'rb') as tf:
         test_data=pickle.load(tf)
     # I need to plot unbalance, and reward of each step by bar figures
-    plt.rcParams["figure.figsize"] = (16,9)
+    plt.rcParams["figure.figsize"] = (16,9) # 设置图表的大小为16x9英寸
     fig,axs=plt.subplots(2,2)
 
-    plt.subplots_adjust(wspace=0.7,hspace=0.3)
+    plt.subplots_adjust(wspace=0.7,hspace=0.3) # 调整子图之间的间距
     plt.autoscale(tight=True)
     # fig.tight_layout()
     #prepare data for evaluation the environment here 
@@ -162,8 +162,24 @@ def smooth(data, sm=5):
                     y = np.mean(data[: n])
                 smooth_data.append(y)
         return smooth_data
+
+def plot_training_rewardinfo(datasource):
+    sns.set_theme(style='whitegrid')
+
+    with open(datasource,'rb') as tf:
+        train_data=pickle.load(tf)
+    # I need to plot reward
+    plt.rcParams["figure.figsize"] = (16,9) # 设置图表的大小为16x9英寸
+    plt.autoscale(tight=True)
+    plt.plot(train_data['episode'], train_data['mean_episode_reward'])
+    plt.xlabel('episode')
+    plt.ylabel('reward')
+    plt.show()
+
 if __name__=='__main__':
     print('test dir and plot shadow loss with sub figure ')
+    plot_training_rewardinfo()('D:\桌面\待实现\代码\DRL-for-Energy-Systems-Optimal-Scheduling\AgentDDPG\\reward_data.pkl')
+
 
 
 

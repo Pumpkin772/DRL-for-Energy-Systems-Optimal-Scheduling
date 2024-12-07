@@ -13,7 +13,7 @@ import pandas as pd
 from tools import Arguments, get_episode_return, test_one_episode, ReplayBuffer, optimization_base_result
 from agent import AgentDDPG
 from random_generator_battery import ESSEnv
-
+import matplotlib.pyplot as plt
 
 def update_buffer(_trajectory):
     # trajectory:=(state, (reward, done, *action))
@@ -32,7 +32,9 @@ def update_buffer(_trajectory):
 if __name__ == '__main__':
     args = Arguments()
     '''here record real unbalance'''
+    # 奖励函数记录
     reward_record = {'episode': [], 'steps': [], 'mean_episode_reward': [], 'unbalance': []}
+    # 损失函数记录
     loss_record = {'episode': [], 'steps': [], 'critic_loss': [], 'actor_loss': [], 'entropy_loss': []}
     args.visible_gpu = '2'
     for seed in args.random_seed_list:  # 每个实验都使用五个随机种子来运行，以消除模拟过程中代码实现部分的随机性
@@ -87,6 +89,8 @@ if __name__ == '__main__':
                 if buffer.now_len >= 10000:
                     collect_data = False
             for i_episode in range(num_episode):
+                reward_record['episode'].append(i_episode)
+                loss_record['episode'].append(i_episode)
                 critic_loss, actor_loss = agent.update_net(buffer, batch_size, repeat_times, soft_update_tau)
                 loss_record['critic_loss'].append(critic_loss)
                 loss_record['actor_loss'].append(actor_loss)
@@ -150,3 +154,8 @@ if __name__ == '__main__':
     print(sum(eval_data['operation_cost']))
     #print(sum(base_result['step_cost']))
     #print(ration)
+    print(reward_record)
+    # from plotDRL import plot_training_info
+    # plot_training_info(args.cwd + '/' + 'reward_data.pkl')
+
+    print(loss_record)

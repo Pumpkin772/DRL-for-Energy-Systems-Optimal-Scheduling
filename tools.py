@@ -107,7 +107,7 @@ class Arguments:
         self.num_threads = 8  # cpu_num for evaluate model, torch.set_num_threads(self.num_threads)
 
         '''Arguments for training'''
-        self.num_episode=20
+        self.num_episode=200
         self.gamma = 0.995  # discount factor of future rewards
         # self.reward_scale = 1  # an approximate target reward usually be closed to 256
         self.learning_rate = 2 ** -14  # 2 ** -14 ~= 6e-5
@@ -136,7 +136,7 @@ class Arguments:
 
     def init_before_training(self, if_main):
         if self.cwd is None:
-            agent_name = self.agent.__class__.__name__
+            agent_name = self.agent.__class__.__name__ #获取 self.agent 实例的类名，并将其存储在变量 agent_name 中
             self.cwd = f'./{agent_name}'
 
         if if_main:
