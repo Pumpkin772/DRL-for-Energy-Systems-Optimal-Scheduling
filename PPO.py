@@ -343,10 +343,10 @@ if __name__=='__main__':
                 loss_record['entropy_loss'].append(entropy_loss)
 
                 with torch.no_grad():
-                    episode_reward,episode_unbalance=get_episode_return(env,agent.act,agent.device)
+                    episode_reward,episode_unbalance,episode_cost=get_episode_return(env,agent.act,agent.device)
                     reward_record['mean_episode_reward'].append(episode_reward)
                     reward_record['unbalance'].append(episode_unbalance)
-                print(f'curren epsiode is {i_episode}, reward:{episode_reward},unbalance:{episode_unbalance}')
+                print(f'curren epsiode is {i_episode}, reward:{episode_reward},unbalance:{episode_unbalance},cost:{episode_cost}')
     act_save_path = f'{args.cwd}/actor.pth'
     loss_record_path=f'{args.cwd}/loss_data.pkl'
     reward_record_path=f'{args.cwd}/reward_data.pkl'

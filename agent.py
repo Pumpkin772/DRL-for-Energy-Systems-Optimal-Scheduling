@@ -33,7 +33,8 @@ class AgentBase:
 
     def select_action(self, state) -> np.ndarray:
         states = torch.as_tensor((state,), dtype=torch.float32, device=self.device)
-        action = self.act(states)[0] # 降二维到一维
+        # PyTorch 中，当实例化一个继承自 nn.Module 的类并调用它时（例如 self.act(states)），它会自动调用该类的 forward 方法
+        action = self.act(states)[0] # [0]作用是降二维到一维
         action = (action + torch.randn_like(action) * self.explore_noise).clamp(-1, 1)
         return action.detach().cpu().numpy()  # 转化为numpy类型，因为需要与env交互
 

@@ -11,7 +11,7 @@ from random_generator_battery import ESSEnv
 import pandas as pd
 
 from tools import Arguments, get_episode_return, test_one_episode, ReplayBuffer, optimization_base_result
-from agent import AgentDDPG
+from agent import AgentSAC
 from random_generator_battery import ESSEnv
 
 
@@ -40,11 +40,11 @@ if __name__ == '__main__':
     for seed in args.random_seed_list:  # 每个实验都使用五个随机种子来运行，以消除模拟过程中代码实现部分的随机性
         args.random_seed = seed
         # set different seed
-        args.agent = AgentDDPG()
+        args.agent = AgentSAC()
         agent_name = f'{args.agent.__class__.__name__}'
         args.agent.cri_target = True
         args.env = ESSEnv()
-        # creat lists of lists/or creat a long list? 
+        # creat lists of lists/or creat a long list?
 
         args.init_before_training(if_main=True)
         '''init agent and environment'''
@@ -64,7 +64,7 @@ if __name__ == '__main__':
         repeat_times = args.repeat_times  # how many times should update for one batch size data
         # if_allow_break = args.if_allow_break
         soft_update_tau = args.soft_update_tau
-        # get the first experience from 
+        # get the first experience from
         agent.state = env.reset()
         # trajectory=agent.explore_env(env,target_step)
         # update_buffer(trajectory)
@@ -108,7 +108,7 @@ if __name__ == '__main__':
                         steps, r_exp = update_buffer(trajectory)
     loss_record_path = f'{args.cwd}/loss_data.pkl'
     reward_record_path = f'{args.cwd}/reward_data.pkl'
-    # current only store last seed corresponded actor 
+    # current only store last seed corresponded actor
     act_save_path = f'{args.cwd}/actor.pth'
     # args.replace_train_data = False
     # 打开一个文件上下文，文件路径由 loss_record_path 指定，模式为 'wb'，表示以二进制写入模式打开文件
@@ -129,7 +129,6 @@ if __name__ == '__main__':
         eval_data = pd.DataFrame(record['information'])
         eval_data.columns = ['time_step', 'price', 'netload', 'action', 'real_action', 'soc', 'battery', 'gen1', 'gen2',
                              'gen3', 'unbalance', 'operation_cost']
-        print(eval_data)
     if args.save_test_data:
         test_data_save_path = f'{args.cwd}/test_data.pkl'
         with open(test_data_save_path, 'wb') as tf:
@@ -149,13 +148,13 @@ if __name__ == '__main__':
         plot_args.feature_change = ''
         args.cwd = agent_name
         plot_dir = make_dir(args.cwd, plot_args.feature_change)
-        plot_optimization_result(base_result, plot_dir)
+        #plot_optimization_result(base_result, plot_dir)
         plot_evaluation_information(args.cwd + '/' + 'test_data.pkl', plot_dir)
     '''compare the different cost get from pyomo and SAC'''
-    ration = sum(eval_data['operation_cost']) / sum(base_result['step_cost'])
+    #ration = sum(eval_data['operation_cost']) / sum(base_result['step_cost'])
     print(sum(eval_data['operation_cost']))
-    print(sum(base_result['step_cost']))
-    print(ration)
+    #print(sum(base_result['step_cost']))
+    #print(ration)
     print(reward_record)
     # from plotDRL import plot_training_info
     # plot_training_info(args.cwd + '/' + 'reward_data.pkl')

@@ -4,9 +4,9 @@
 # Hou Shengren, TU Delft, h.shengren@tudelft.nl
 import random
 import numpy as np
-import pandas as pd 
+import pandas as pd
 import gym
-from gym import spaces 
+from gym import spaces
 
 from Parameters import battery_parameters,dg_parameters
 
@@ -42,12 +42,12 @@ class DG():
         self.power_output_min=parameters['power_output_min']
         self.ramping_up=parameters['ramping_up']
         self.ramping_down=parameters['ramping_down']
-        self.last_step_output=None 
+        self.last_step_output=None
     def step(self,action_gen):
         output_change=action_gen*self.ramping_up# constrain the output_change with ramping up boundary
         output=self.current_output+output_change
         if output>0:
-            output=max(self.power_output_min,min(self.power_output_max,output))# meet the constrain 
+            output=max(self.power_output_min,min(self.power_output_max,output))# meet the constrain
         else:
             output=0
         self.current_output=output
@@ -56,7 +56,7 @@ class DG():
             cost=0
         else:
             cost=(self.a_factor*pow(output,2)+self.b_factor*output+self.c_factor)
-        return cost 
+        return cost
     def reset(self):
         self.current_output=0
 
@@ -78,14 +78,14 @@ class Battery():
         self.current_capacity=updated_capacity# update capacity to current codition
     def _get_cost(self,energy):# calculate the cost depends on the energy change
         cost=energy**2*self.degradation
-        return cost  
+        return cost
     def SOC(self):
         return self.current_capacity
     def reset(self):
         self.current_capacity=np.random.uniform(0.2,0.8)
 class Grid():
     def __init__(self):
-        
+
         self.on=True
         if self.on:
             self.exchange_ability=100
@@ -104,11 +104,11 @@ class Grid():
             result.append(item)
         for item in self.price[24*self.day:(24*self.day+self.time)]:
             result.append(item)
-        return result 
+        return result
 class ESSEnv(gym.Env):
     def __init__(self,**kwargs):
         super(ESSEnv,self).__init__()
-        #parameters 
+        #parameters
         self.data_manager=DataManager()
         self._load_year_data()
         self.episode_length=kwargs.get('episode_length',24)
@@ -118,7 +118,7 @@ class ESSEnv(gym.Env):
         self.current_time=None
         self.battery_parameters=kwargs.get('battery_parameters',battery_parameters)
         self.dg_parameters=kwargs.get('dg_parameters',dg_parameters)
-        self.penalty_coefficient=50#control soft penalty constrain 
+        self.penalty_coefficient=50#control soft penalty constrain
         self.sell_coefficient=0.5# control sell benefits
 
         self.grid=Grid()
@@ -135,7 +135,7 @@ class ESSEnv(gym.Env):
     def netload(self):
 
         return self.demand-self.grid.wp_gen-self.grid.pv_gen
-        
+
     def reset(self,):
         self.month=np.random.randint(1,13)# here we choose 12 month
         if self.TRAIN:
@@ -170,7 +170,7 @@ class ESSEnv(gym.Env):
         self.dg3.step(action[3])
         current_output=np.array((self.dg1.current_output,self.dg2.current_output,self.dg3.current_output,-self.battery.energy_change))#truely corresonding to the result
         self.current_output=current_output
-        actual_production=sum(current_output)        
+        actual_production=sum(current_output)
         netload=current_obs[3]
         price=current_obs[1]
 
@@ -188,24 +188,25 @@ class ESSEnv(gym.Env):
                 sell_benefit=self.grid._get_cost(price,unbalance)*self.sell_coefficient #sell money to grid is little [0.029,0.1]
             else:
                 sell_benefit=self.grid._get_cost(price,self.grid.exchange_ability)*self.sell_coefficient
-                #real unbalance that even grid could not meet 
+                #real unbalance that even grid could not meet
                 self.excess=unbalance-self.grid.exchange_ability
                 excess_penalty=self.excess*self.penalty_coefficient
-        else:# unbalance <0, its load shedding model, in this case, deficient penalty is used 
+        else:# unbalance <0, its load shedding model, in this case, deficient penalty is used
             if abs(unbalance)<=self.grid.exchange_ability:
                 buy_cost=self.grid._get_cost(price,abs(unbalance))
             else:
                 buy_cost=self.grid._get_cost(price,self.grid.exchange_ability)
                 self.shedding=abs(unbalance)-self.grid.exchange_ability
                 deficient_penalty=self.shedding*self.penalty_coefficient
-        battery_cost=self.battery._get_cost(self.battery.energy_change)# we set it as 0 this time 
+        battery_cost=self.battery._get_cost(self.battery.energy_change)# we set it as 0 this time
         dg1_cost=self.dg1._get_cost(self.dg1.current_output)
         dg2_cost=self.dg2._get_cost(self.dg2.current_output)
         dg3_cost=self.dg3._get_cost(self.dg3.current_output)
 
         reward-=(battery_cost+dg1_cost+dg2_cost+dg3_cost+excess_penalty+
         deficient_penalty-sell_benefit+buy_cost)/1e3
-        self.operation_cost=battery_cost+dg1_cost+dg2_cost+dg3_cost+buy_cost-sell_benefit+excess_penalty+deficient_penalty
+        #self.operation_cost=battery_cost+dg1_cost+dg2_cost+dg3_cost+buy_cost-sell_benefit+excess_penalty+deficient_penalty
+        self.operation_cost = battery_cost + dg1_cost + dg2_cost + dg3_cost + buy_cost - sell_benefit
         self.unbalance=unbalance
         self.real_unbalance=self.shedding+self.excess
         final_step_outputs=[self.dg1.current_output,self.dg2.current_output,self.dg3.current_output,self.battery.current_capacity]
@@ -222,7 +223,7 @@ class ESSEnv(gym.Env):
             #     self.month=1
             #     self.day=1
             next_obs=self.reset()
-            
+
         else:
             next_obs=self._build_state()
         return current_obs,next_obs,float(reward),finish
@@ -230,7 +231,7 @@ class ESSEnv(gym.Env):
         print('day={},hour={:2d}, state={}, next_state={}, reward={:.4f}, terminal={}\n'.format(self.day,self.current_time, current_obs, next_obs, reward, finish))
     def _load_year_data(self):
         pv_df=pd.read_csv('data/PV.csv',sep=';')
-        #hourly price data for a year 
+        #hourly price data for a year
         price_df=pd.read_csv('data/Prices.csv',sep=';')
         # mins electricity consumption data for a year 
         electricity_df=pd.read_csv('data/H4.csv',sep=';')

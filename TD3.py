@@ -38,7 +38,7 @@ if __name__=='__main__':
             args.agent = AgentTD3()
             agent_name = f'{args.agent.__class__.__name__}'
             args.agent.cri_target = True
-
+            args.env = ESSEnv()
 
             args.init_before_training(if_main=True)
             '''init agent and environment'''
@@ -86,11 +86,11 @@ if __name__=='__main__':
                     loss_record['critic_loss'].append(critic_loss)
                     loss_record['actor_loss'].append(actor_loss)
                     with torch.no_grad():
-                        episode_reward, episode_unbalance = get_episode_return(env, agent.act, agent.device)
+                        episode_reward, episode_unbalance, episode_cost = get_episode_return(env, agent.act, agent.device)
                         reward_record['mean_episode_reward'].append(episode_reward)
                         reward_record['unbalance'].append(episode_unbalance)
                     print(
-                        f'curren epsiode is {i_episode}, reward:{episode_reward},unbalance:{episode_unbalance},buffer_length: {buffer.now_len}')
+                        f'curren epsiode is {i_episode}, reward:{episode_reward},unbalance:{episode_unbalance},cost:{episode_cost},buffer_length: {buffer.now_len}')
                     if i_episode % 10 == 0:
                         # target_step
                         with torch.no_grad():

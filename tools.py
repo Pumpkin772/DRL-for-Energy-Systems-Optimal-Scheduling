@@ -107,16 +107,16 @@ class Arguments:
         self.num_threads = 8  # cpu_num for evaluate model, torch.set_num_threads(self.num_threads)
 
         '''Arguments for training'''
-        self.num_episode=200
+        self.num_episode=100
         self.gamma = 0.995  # discount factor of future rewards
         # self.reward_scale = 1  # an approximate target reward usually be closed to 256
         self.learning_rate = 2 ** -14  # 2 ** -14 ~= 6e-5
         self.soft_update_tau = 2 ** -8  # 2 ** -8 ~= 5e-3
 
         self.net_dim = 256  # the network width 256
-        self.batch_size = 4096  # num of transitions sampled from replay buffer.
-        self.repeat_times = 2 ** 5  # repeatedly update network to keep critic's loss small
-        self.target_step = 4096 # collect target_step experiences , then update network, 1024
+        self.batch_size = 256  # num of transitions sampled from replay buffer.
+        self.repeat_times = 2 ** 3  # repeatedly update network to keep critic's loss small
+        self.target_step = 1000 # collect target_step experiences , then update network, 1024
         self.max_memo = 500000  # capacity of replay buffer
         self.if_per_or_gae = False  # PER for off-policy sparse reward: Prioritized Experience Replay.
 
@@ -131,7 +131,7 @@ class Arguments:
         self.save_network=True
         self.test_network=True
         self.save_test_data=True
-        self.compare_with_pyomo=False
+        self.compare_with_pyomo=True
         self.plot_on=True
 
     def init_before_training(self, if_main):
@@ -183,7 +183,7 @@ def test_one_episode(env, act, device):
         record_action.append(real_action)
         record_reward.append(reward)
         record_output.append(env.current_output)
-        record_unbalance.append(env.unbalance)
+        record_unbalance.append(env.real_unbalance)
         state=next_state
     record_system_info[-1][7:10]=[env.final_step_outputs[0],env.final_step_outputs[1],env.final_step_outputs[2]]
     ## add information of last step soc
@@ -193,6 +193,7 @@ def test_one_episode(env, act, device):
 def get_episode_return(env, act, device):
     episode_return = 0.0  # sum of rewards in an episode
     episode_unbalance=0.0
+    episode_cost = 0.0
     state = env.reset()
     for i in range(24):
         s_tensor = torch.as_tensor((state,), device=device)
@@ -202,9 +203,10 @@ def get_episode_return(env, act, device):
         state=next_state
         episode_return += reward
         episode_unbalance+=env.real_unbalance
+        episode_cost += env.operation_cost
         if done:
             break
-    return episode_return,episode_unbalance
+    return episode_return,episode_unbalance,episode_cost
 class ReplayBuffer:
     def __init__(self, max_len, state_dim, action_dim, gpu_id=0):
         self.now_len = 0

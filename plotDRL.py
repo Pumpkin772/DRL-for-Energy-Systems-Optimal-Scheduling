@@ -172,13 +172,14 @@ def plot_training_rewardinfo(datasource):
     plt.rcParams["figure.figsize"] = (16,9) # 设置图表的大小为16x9英寸
     plt.autoscale(tight=True)
     plt.plot(train_data['episode'], train_data['mean_episode_reward'])
+    plt.plot(train_data['episode'], train_data['cost'])
     plt.xlabel('episode')
     plt.ylabel('reward')
     plt.show()
 
 if __name__=='__main__':
     print('test dir and plot shadow loss with sub figure ')
-    plot_training_rewardinfo()('D:\桌面\待实现\代码\DRL-for-Energy-Systems-Optimal-Scheduling\AgentDDPG\\reward_data.pkl')
+    plot_training_rewardinfo('D:\桌面\待实现\代码\DRL-for-Energy-Systems-Optimal-Scheduling\AgentDDPG\\reward_data.pkl')
 
 
 
