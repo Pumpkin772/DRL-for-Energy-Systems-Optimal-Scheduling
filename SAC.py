@@ -31,6 +31,7 @@ if __name__=='__main__':
     reward_record={'episode':[],'steps':[],'mean_episode_reward':[],'unbalance':[],'cost':[]}
     loss_record={'episode':[],'steps':[],'critic_loss':[],'actor_loss':[],'entropy_loss':[]}
     args.visible_gpu='0'
+    all_seeds_reward_record = {}
     for seed in args.random_seed_list:
         args.random_seed = seed
         args.agent=AgentSAC()
@@ -41,6 +42,8 @@ if __name__=='__main__':
         '''init agent and environment'''
         agent=args.agent
         env=args.env
+        all_seeds_reward_record[seed] = {'episode': [], 'steps': [], 'mean_episode_reward': [], 'unbalance': [],
+                                         'cost': []}
         agent.init(args.net_dim,env.state_space.shape[0],env.action_space.shape[0],args.learning_rate,args.if_per_or_gae)
         '''init replay buffer'''
         buffer = ReplayBuffer(max_len=args.max_memo, state_dim=env.state_space.shape[0],
@@ -94,14 +97,18 @@ if __name__=='__main__':
                     with torch.no_grad():
                         trajectory=agent.explore_env(env,target_step)
                         steps,r_exp=update_buffer(trajectory)
+        all_seeds_reward_record[seed] = reward_record
+
     act_save_path = f'{args.cwd}/actor.pth'
     loss_record_path=f'{args.cwd}/loss_data.pkl'
     reward_record_path=f'{args.cwd}/reward_data.pkl'
+    all_seeds_reward_record_path = f'{args.cwd}/all_seeds_reward_record.pkl'
     with open (loss_record_path,'wb') as tf:
         pickle.dump(loss_record,tf)
     with open (reward_record_path,'wb') as tf:
         pickle.dump(reward_record,tf)
-
+    with open(all_seeds_reward_record_path, 'wb') as tf:
+        pickle.dump(all_seeds_reward_record, tf)
 
 
     if args.save_network:

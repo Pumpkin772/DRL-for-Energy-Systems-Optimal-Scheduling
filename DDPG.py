@@ -32,18 +32,22 @@ def update_buffer(_trajectory):
 if __name__ == '__main__':
     args = Arguments()
     '''here record real unbalance'''
-    # 奖励函数记录
-    reward_record = {'episode': [], 'steps': [], 'mean_episode_reward': [], 'unbalance': [], 'cost': []}
-    # 损失函数记录
-    loss_record = {'episode': [], 'steps': [], 'critic_loss': [], 'actor_loss': [], 'entropy_loss': []}
+
     args.visible_gpu = '2'
+    all_seeds_reward_record = {}
+
     for seed in args.random_seed_list:  # 每个实验都使用五个随机种子来运行，以消除模拟过程中代码实现部分的随机性
+        # 奖励函数记录
+        reward_record = {'episode': [], 'steps': [], 'mean_episode_reward': [], 'unbalance': [], 'cost': []}
+        # 损失函数记录
+        loss_record = {'episode': [], 'steps': [], 'critic_loss': [], 'actor_loss': [], 'entropy_loss': []}
         args.random_seed = seed
         # set different seed
         args.agent = AgentDDPG()
         agent_name = f'{args.agent.__class__.__name__}'
         args.agent.cri_target = True
         args.env = ESSEnv()
+        all_seeds_reward_record[seed] = {'episode': [], 'steps': [], 'mean_episode_reward': [], 'unbalance': [], 'cost': []}
         # creat lists of lists/or creat a long list? 
 
         args.init_before_training(if_main=True)
@@ -106,8 +110,12 @@ if __name__ == '__main__':
                     with torch.no_grad():
                         trajectory = agent.explore_env(env, target_step)
                         steps, r_exp = update_buffer(trajectory)
+
+        all_seeds_reward_record[seed] = reward_record
+    print(all_seeds_reward_record)
     loss_record_path = f'{args.cwd}/loss_data.pkl'
     reward_record_path = f'{args.cwd}/reward_data.pkl'
+    all_seeds_reward_record_path = f'{args.cwd}/all_seeds_reward_record.pkl'
     # current only store last seed corresponded actor 
     act_save_path = f'{args.cwd}/actor.pth'
     # args.replace_train_data = False
@@ -116,6 +124,8 @@ if __name__ == '__main__':
         pickle.dump(loss_record, tf)  # 将 loss_record 字典序列化并写入到文件对象 tf 中
     with open(reward_record_path, 'wb') as tf:
         pickle.dump(reward_record, tf)
+    with open(all_seeds_reward_record_path, 'wb') as tf:
+        pickle.dump(all_seeds_reward_record, tf)
     print('training data have been saved')
     if args.save_network:
         torch.save(agent.act.state_dict(), act_save_path)

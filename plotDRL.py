@@ -168,13 +168,32 @@ def plot_training_rewardinfo(datasource):
 
     with open(datasource,'rb') as tf:
         train_data=pickle.load(tf)
-    # I need to plot reward
+    #plot reward
+    random_seed_list = [1234, 2234, 3234, 4234, 5234]
+    all_train_reward = []
+    for seed in random_seed_list:
+        all_train_reward.append(train_data[seed]['mean_episode_reward'])
+    all_train_reward = np.array(all_train_reward)
+    mean_rewards = np.mean(all_train_reward, axis=0)
+    sem_rewards = np.std(all_train_reward, axis=0) / np.sqrt(all_train_reward.shape[0])
+    episodes = train_data[1234]['episode']
     plt.rcParams["figure.figsize"] = (16,9) # 设置图表的大小为16x9英寸
     plt.autoscale(tight=True)
-    plt.plot(train_data['episode'], train_data['mean_episode_reward'])
-    plt.plot(train_data['episode'], train_data['cost'])
-    plt.xlabel('episode')
-    plt.ylabel('reward')
+    critical_value = 1.96  # 对应于95%置信水平
+    margin_error = critical_value * sem_rewards
+    # 绘制均值曲线
+    plt.plot(episodes, mean_rewards, label='Mean Reward', color='blue')
+    # 绘制95%置信区间
+    plt.fill_between(episodes, mean_rewards - margin_error, mean_rewards + margin_error, color='lightblue', alpha=0.3,
+                     label='95% Confidence Interval')
+    # 添加图例
+    plt.legend()
+    # 添加标题和轴标签
+    plt.title('Training Rewards over Episodes with 95% Confidence Interval')
+    plt.xlabel('Episode')
+    plt.ylabel('Reward')
+    # 添加虚线网格
+    plt.grid(True, linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
     plt.show()
 
 if __name__=='__main__':

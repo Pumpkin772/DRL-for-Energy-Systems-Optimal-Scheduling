@@ -118,8 +118,8 @@ class ESSEnv(gym.Env):
         self.current_time=None
         self.battery_parameters=kwargs.get('battery_parameters',battery_parameters)
         self.dg_parameters=kwargs.get('dg_parameters',dg_parameters)
-        self.penalty_coefficient=50#control soft penalty constrain
-        self.sell_coefficient=0.5# control sell benefits
+        self.penalty_coefficient=50#control soft penalty constrain 原文中的σ2
+        self.sell_coefficient=0.5# control sell benefits 原文中的β
 
         self.grid=Grid()
         self.battery=Battery(self.battery_parameters)
