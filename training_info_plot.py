@@ -21,9 +21,9 @@ plot_cost_rewardinfo(name3,datasource3,color3)
 plot_cost_rewardinfo(name4,datasource4,color4)
 plt.legend()
 # 添加标题和轴标签
-plt.title('Training Rewards over Episodes with 95% Confidence Interval')
+plt.title('Training Cost over Episodes with 95% Confidence Interval')
 plt.xlabel('Episode')
-plt.ylabel('Reward')
+plt.ylabel('Cost')
 # 添加虚线网格
 plt.grid(True, linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
 plt.show()
