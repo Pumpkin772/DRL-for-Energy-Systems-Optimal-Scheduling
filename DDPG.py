@@ -10,7 +10,7 @@ from torch.nn.modules import loss
 from random_generator_battery import ESSEnv
 import pandas as pd
 
-from tools import Arguments, get_episode_return, test_one_episode, ReplayBuffer, optimization_base_result
+from tools import Arguments, get_episode_return, test_one_episode, ReplayBuffer, optimization_base_result, test_ten_episodes
 from agent import AgentDDPG
 from random_generator_battery import ESSEnv
 
@@ -33,7 +33,8 @@ if __name__ == '__main__':
     args = Arguments()
     '''here record real unbalance'''
 
-    args.visible_gpu = '2'
+    args.visible_gpu = '0'
+    gpu_id = 0
     all_seeds_reward_record = {}
 
     for seed in args.random_seed_list:  # 每个实验都使用五个随机种子来运行，以消除模拟过程中代码实现部分的随机性
@@ -55,7 +56,7 @@ if __name__ == '__main__':
         agent = args.agent
         env = args.env
         agent.init(args.net_dim, env.state_space.shape[0], env.action_space.shape[0], args.learning_rate,
-                   args.if_per_or_gae)
+                   args.if_per_or_gae,gpu_id)
         '''init replay buffer'''
         buffer = ReplayBuffer(max_len=args.max_memo, state_dim=env.state_space.shape[0],
                               action_dim=env.action_space.shape[0])
@@ -135,11 +136,12 @@ if __name__ == '__main__':
         args.cwd = agent_name
         agent.act.load_state_dict(torch.load(act_save_path))
         print('parameters have been reload and test')
-        record = test_one_episode(env, agent.act, agent.device)
-        eval_data = pd.DataFrame(record['information'])
-        eval_data.columns = ['time_step', 'price', 'netload', 'action', 'real_action', 'soc', 'battery', 'gen1', 'gen2',
-                             'gen3', 'unbalance', 'operation_cost']
-        print(eval_data)
+        record = test_ten_episodes(env, agent.act, agent.device)
+        print(record)
+        #eval_data = pd.DataFrame(record['information'])
+        #eval_data.columns = ['time_step', 'price', 'netload', 'action', 'real_action', 'soc', 'battery', 'gen1', 'gen2',
+        #                     'gen3', 'unbalance', 'operation_cost']
+        #print(eval_data)
     if args.save_test_data:
         test_data_save_path = f'{args.cwd}/test_data.pkl'
         with open(test_data_save_path, 'wb') as tf:
@@ -162,12 +164,10 @@ if __name__ == '__main__':
         plot_optimization_result(base_result, plot_dir)
         plot_evaluation_information(args.cwd + '/' + 'test_data.pkl', plot_dir)
     '''compare the different cost get from pyomo and SAC'''
-    ration = sum(eval_data['operation_cost']) / sum(base_result['step_cost'])
-    print(sum(eval_data['operation_cost']))
-    print(sum(base_result['step_cost']))
-    print(ration)
-    print(reward_record)
+    # ration = sum(eval_data['operation_cost']) / sum(base_result['step_cost'])
+    # print(sum(eval_data['operation_cost']))
+    # print(sum(base_result['step_cost']))
+    # print(ration)
+    # print(reward_record)
     # from plotDRL import plot_training_info
     # plot_training_info(args.cwd + '/' + 'reward_data.pkl')
-
-    print(loss_record)

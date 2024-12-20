@@ -10,7 +10,7 @@ from plotDRL import plot_optimization_result
 from random_generator_battery import ESSEnv
 import pandas as pd 
 
-from tools import Arguments,get_episode_return,test_one_episode,ReplayBuffer,optimization_base_result
+from tools import Arguments,get_episode_return,test_one_episode,ReplayBuffer,optimization_base_result,test_ten_episodes
 from agent import AgentTD3
 from random_generator_battery import ESSEnv
 def update_buffer(_trajectory):
@@ -29,10 +29,14 @@ if __name__=='__main__':
     args=Arguments()
     reward_record={'episode':[],'steps':[],'mean_episode_reward':[],'unbalance':[]}
     loss_record={'episode':[],'steps':[],'critic_loss':[],'actor_loss':[],'entropy_loss':[]}
-    args.visible_gpu = '1'
+    args.visible_gpu = '0'
     all_seeds_reward_record = {}
     if bool(args.random_seed_list):
         for seed in args.random_seed_list:
+            # 奖励函数记录
+            reward_record = {'episode': [], 'steps': [], 'mean_episode_reward': [], 'unbalance': [], 'cost': []}
+            # 损失函数记录
+            loss_record = {'episode': [], 'steps': [], 'critic_loss': [], 'actor_loss': [], 'entropy_loss': []}
             args.random_seed = seed
 
             args.agent = AgentTD3()
@@ -84,6 +88,8 @@ if __name__=='__main__':
                     if buffer.now_len >= 10000:
                         collect_data = False
                 for i_episode in range(num_episode):
+                    reward_record['episode'].append(i_episode)
+                    loss_record['episode'].append(i_episode)
                     critic_loss, actor_loss = agent.update_net(buffer, batch_size, repeat_times, soft_update_tau)
                     loss_record['critic_loss'].append(critic_loss)
                     loss_record['actor_loss'].append(actor_loss)
@@ -91,6 +97,7 @@ if __name__=='__main__':
                         episode_reward, episode_unbalance, episode_cost = get_episode_return(env, agent.act, agent.device)
                         reward_record['mean_episode_reward'].append(episode_reward)
                         reward_record['unbalance'].append(episode_unbalance)
+                        reward_record['cost'].append(episode_cost)
                     print(
                         f'curren epsiode is {i_episode}, reward:{episode_reward},unbalance:{episode_unbalance},cost:{episode_cost},buffer_length: {buffer.now_len}')
                     if i_episode % 10 == 0:
@@ -118,10 +125,11 @@ if __name__=='__main__':
         args.cwd = agent_name
         agent.act.load_state_dict(torch.load(act_save_path))
         print('parameters have been reload and test')
-        record = test_one_episode(env, agent.act, agent.device)
-        eval_data = pd.DataFrame(record['information'])
-        eval_data.columns = ['time_step', 'price', 'netload', 'action', 'real_action', 'soc', 'battery', 'gen1', 'gen2',
-                             'gen3', 'unbalance', 'operation_cost']
+        record = test_ten_episodes(env, agent.act, agent.device)
+        print(record)
+        #eval_data = pd.DataFrame(record['information'])
+        #eval_data.columns = ['time_step', 'price', 'netload', 'action', 'real_action', 'soc', 'battery', 'gen1', 'gen2',
+        #                     'gen3', 'unbalance', 'operation_cost']
     if args.save_test_data:
         test_data_save_path = f'{args.cwd}/test_data.pkl'
         with open(test_data_save_path, 'wb') as tf:
@@ -145,7 +153,7 @@ if __name__=='__main__':
         plot_optimization_result(base_result, plot_dir)
         plot_evaluation_information(args.cwd + '/' + 'test_data.pkl', plot_dir)
     '''compare the different cost get from pyomo and SAC'''
-    ration = sum(eval_data['operation_cost']) / sum(base_result['step_cost'])
-    print(sum(eval_data['operation_cost']))
-    print(sum(base_result['step_cost']))
-    print(ration)   
+    #ration = sum(eval_data['operation_cost']) / sum(base_result['step_cost'])
+    #print(sum(eval_data['operation_cost']))
+    #print(sum(base_result['step_cost']))
+    #print(ration)

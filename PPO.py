@@ -12,7 +12,7 @@ from torch.nn.modules import loss
 from random_generator_battery import ESSEnv
 import pandas as pd 
 from copy import deepcopy
-from tools import get_episode_return,test_one_episode
+from tools import get_episode_return,test_one_episode,test_ten_episodes
 # from agent import AgentPPO
 from random_generator_battery import ESSEnv
 
@@ -240,21 +240,22 @@ class Arguments:
         self.num_threads = 8  # cpu_num for evaluate model, torch.set_num_threads(self.num_threads)
 
         '''Arguments for training'''
-        self.num_episode=2000 # to control the train episodes for PPO
+        self.num_episode=400 # to control the train episodes for PPO
         self.gamma = 0.995  # discount factor of future rewards
-        self.learning_rate = 2e-4
+        self.learning_rate = 2 ** -14
         self.soft_update_tau = 2 ** -8  # 2 ** -8 ~= 5e-3
 
         self.net_dim = 256  # the network width
-        self.batch_size = 4096  # num of transitions sampled from replay buffer.
+        self.batch_size = 256  # num of transitions sampled from replay buffer.
         self.repeat_times = 2 ** 3  # collect target_step, then update network
-        self.target_step = 4096  # repeatedly update network to keep critic's loss small
-        self.max_memo = self.target_step  # capacity of replay buffer
+        self.target_step = 1000  # repeatedly update network to keep critic's loss small
+        self.max_memo = 500000  # capacity of replay buffer
         self.if_per_or_gae = False  # GAE for on-policy sparse reward: Generalized Advantage Estimation.
 
         '''Arguments for evaluate'''
         self.random_seed = 1234  # initialize random seed in self.init_before_training()
         self.random_seed_list = [1234, 2234, 3234, 4234, 5234]
+        #self.random_seed_list = [1234]
         self.train=True
         self.save_network=True
         self.test_network=True
@@ -302,9 +303,13 @@ if __name__=='__main__':
     args=Arguments()
     reward_record={'episode':[],'steps':[],'mean_episode_reward':[],'unbalance':[]}
     loss_record={'episode':[],'steps':[],'critic_loss':[],'actor_loss':[],'entropy_loss':[]}
-    args.visible_gpu = '3'
+    args.visible_gpu = '0'
     all_seeds_reward_record = {}
     for seed in args.random_seed_list:
+        # 奖励函数记录
+        reward_record = {'episode': [], 'steps': [], 'mean_episode_reward': [], 'unbalance': [], 'cost': []}
+        # 损失函数记录
+        loss_record = {'episode': [], 'steps': [], 'critic_loss': [], 'actor_loss': [], 'entropy_loss': []}
         args.random_seed=seed
         args.agent=AgentPPO()
 
@@ -337,6 +342,8 @@ if __name__=='__main__':
         # args.compare_with_pyomo=False
         if args.train:
             for i_episode in range(num_episode):
+                reward_record['episode'].append(i_episode)
+                loss_record['episode'].append(i_episode)
                 with torch.no_grad():
                     trajectory_list=agent.explore_env(env,target_step)
                     steps,r_exp=update_buffer(trajectory_list)
@@ -349,6 +356,7 @@ if __name__=='__main__':
                     episode_reward,episode_unbalance,episode_cost=get_episode_return(env,agent.act,agent.device)
                     reward_record['mean_episode_reward'].append(episode_reward)
                     reward_record['unbalance'].append(episode_unbalance)
+                    reward_record['cost'].append(episode_cost)
                 print(f'curren epsiode is {i_episode}, reward:{episode_reward},unbalance:{episode_unbalance},cost:{episode_cost}')
         all_seeds_reward_record[seed] = reward_record
     act_save_path = f'{args.cwd}/actor.pth'
@@ -370,9 +378,10 @@ if __name__=='__main__':
         args.cwd=agent_name
         agent.act.load_state_dict(torch.load(act_save_path))
         print('parameters have been reload and test')
-        record=test_one_episode(env,agent.act,agent.device)
-        eval_data=pd.DataFrame(record['information'])
-        eval_data.columns=['time_step','price','netload','action','real_action','soc','battery','gen1','gen2','gen3','unbalance','operation_cost']
+        record=test_ten_episodes(env,agent.act,agent.device)
+        print(record)
+        #eval_data=pd.DataFrame(record['information'])
+        #eval_data.columns=['time_step','price','netload','action','real_action','soc','battery','gen1','gen2','gen3','unbalance','operation_cost']
     if args.save_test_data:
         test_data_save_path=f'{args.cwd}/test_data.pkl'
         with open(test_data_save_path,'wb') as tf:
@@ -395,7 +404,7 @@ if __name__=='__main__':
         plot_optimization_result(base_result,plot_dir)
         plot_evaluation_information(args.cwd+'/'+'test_data.pkl',plot_dir)
     '''compare the different cost get from pyomo and SAC'''
-    ration=sum(eval_data['operation_cost'])/sum(base_result['step_cost'])
-    print(sum(eval_data['operation_cost']))
-    print(sum(base_result['step_cost']))
-    print(ration)       
+    #ration=sum(eval_data['operation_cost'])/sum(base_result['step_cost'])
+    #print(sum(eval_data['operation_cost']))
+    #print(sum(base_result['step_cost']))
+    #print(ration)

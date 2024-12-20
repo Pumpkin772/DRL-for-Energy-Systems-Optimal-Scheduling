@@ -10,7 +10,7 @@ from torch.nn.modules import loss
 from random_generator_battery import ESSEnv
 import pandas as pd 
 
-from tools import Arguments,get_episode_return,test_one_episode,ReplayBuffer,optimization_base_result
+from tools import Arguments,get_episode_return,test_one_episode,ReplayBuffer,optimization_base_result,test_ten_episodes
 from agent import AgentSAC
 from random_generator_battery import ESSEnv
 
@@ -31,8 +31,13 @@ if __name__=='__main__':
     reward_record={'episode':[],'steps':[],'mean_episode_reward':[],'unbalance':[],'cost':[]}
     loss_record={'episode':[],'steps':[],'critic_loss':[],'actor_loss':[],'entropy_loss':[]}
     args.visible_gpu='0'
+    gpu_id = 0
     all_seeds_reward_record = {}
     for seed in args.random_seed_list:
+        # 奖励函数记录
+        reward_record = {'episode': [], 'steps': [], 'mean_episode_reward': [], 'unbalance': [], 'cost': []}
+        # 损失函数记录
+        loss_record = {'episode': [], 'steps': [], 'critic_loss': [], 'actor_loss': [], 'entropy_loss': []}
         args.random_seed = seed
         args.agent=AgentSAC()
         agent_name=f'{args.agent.__class__.__name__}'
@@ -44,7 +49,7 @@ if __name__=='__main__':
         env=args.env
         all_seeds_reward_record[seed] = {'episode': [], 'steps': [], 'mean_episode_reward': [], 'unbalance': [],
                                          'cost': []}
-        agent.init(args.net_dim,env.state_space.shape[0],env.action_space.shape[0],args.learning_rate,args.if_per_or_gae)
+        agent.init(args.net_dim,env.state_space.shape[0],env.action_space.shape[0],args.learning_rate,args.if_per_or_gae,gpu_id)
         '''init replay buffer'''
         buffer = ReplayBuffer(max_len=args.max_memo, state_dim=env.state_space.shape[0],
                               action_dim= env.action_space.shape[0])
@@ -82,6 +87,8 @@ if __name__=='__main__':
                 if buffer.now_len>=10000:
                     collect_data=False
             for i_episode in range(num_episode):
+                reward_record['episode'].append(i_episode)
+                loss_record['episode'].append(i_episode)
                 critic_loss,actor_loss,entropy_loss=agent.update_net(buffer,batch_size,repeat_times,soft_update_tau)
                 loss_record['critic_loss'].append(critic_loss)
                 loss_record['actor_loss'].append(actor_loss)
@@ -119,9 +126,10 @@ if __name__=='__main__':
         args.cwd=agent_name
         agent.act.load_state_dict(torch.load(act_save_path))
         print('parameters have been reload and test')
-        record=test_one_episode(env,agent.act,agent.device)
-        eval_data=pd.DataFrame(record['information'])
-        eval_data.columns=['time_step','price','netload','action','real_action','soc','battery','gen1','gen2','gen3','unbalance','operation_cost']
+        record=test_ten_episodes(env,agent.act,agent.device)
+        print(record)
+        #eval_data=pd.DataFrame(record['information'])
+        #eval_data.columns=['time_step','price','netload','action','real_action','soc','battery','gen1','gen2','gen3','unbalance','operation_cost']
     if args.save_test_data:
         test_data_save_path=f'{args.cwd}/test_data.pkl'
         with open(test_data_save_path,'wb') as tf:
@@ -143,7 +151,7 @@ if __name__=='__main__':
         plot_optimization_result(base_result,plot_dir)
         plot_evaluation_information(args.cwd+'/'+'test_data.pkl',plot_dir)
     '''compare the different cost get from pyomo and SAC'''
-    ration=sum(eval_data['operation_cost'])/sum(base_result['step_cost'])
-    print(sum(eval_data['operation_cost']))
-    print(sum(base_result['step_cost']))
-    print(ration)   
+    #ration=sum(eval_data['operation_cost'])/sum(base_result['step_cost'])
+    #print(sum(eval_data['operation_cost']))
+    #print(sum(base_result['step_cost']))
+    #print(ration)

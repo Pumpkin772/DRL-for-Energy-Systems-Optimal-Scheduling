@@ -163,7 +163,7 @@ def smooth(data, sm=5):
                 smooth_data.append(y)
         return smooth_data
 
-def plot_training_rewardinfo(datasource):
+def plot_training_rewardinfo(name,datasource,color):
     sns.set_theme(style='whitegrid')
 
     with open(datasource,'rb') as tf:
@@ -176,25 +176,44 @@ def plot_training_rewardinfo(datasource):
     all_train_reward = np.array(all_train_reward)
     mean_rewards = np.mean(all_train_reward, axis=0)
     sem_rewards = np.std(all_train_reward, axis=0) / np.sqrt(all_train_reward.shape[0])
-    episodes = train_data[1234]['episode']
+    episodes = []
+    for i in range(400):
+        episodes.append(i)
     plt.rcParams["figure.figsize"] = (16,9) # 设置图表的大小为16x9英寸
     plt.autoscale(tight=True)
     critical_value = 1.96  # 对应于95%置信水平
     margin_error = critical_value * sem_rewards
     # 绘制均值曲线
-    plt.plot(episodes, mean_rewards, label='Mean Reward', color='blue')
+    plt.plot(episodes, mean_rewards, label=name, color=color)
     # 绘制95%置信区间
-    plt.fill_between(episodes, mean_rewards - margin_error, mean_rewards + margin_error, color='lightblue', alpha=0.3,
-                     label='95% Confidence Interval')
+    plt.fill_between(episodes, mean_rewards - margin_error, mean_rewards + margin_error, color=f'light{color}', alpha=0.3)
     # 添加图例
-    plt.legend()
-    # 添加标题和轴标签
-    plt.title('Training Rewards over Episodes with 95% Confidence Interval')
-    plt.xlabel('Episode')
-    plt.ylabel('Reward')
-    # 添加虚线网格
-    plt.grid(True, linestyle='--', linewidth=0.5, color='gray', alpha=0.7)
-    plt.show()
+
+def plot_cost_rewardinfo(name,datasource,color):
+    sns.set_theme(style='whitegrid')
+
+    with open(datasource,'rb') as tf:
+        train_data=pickle.load(tf)
+    #plot reward
+    random_seed_list = [1234, 2234, 3234, 4234, 5234]
+    all_train_cost = []
+    for seed in random_seed_list:
+        all_train_cost.append(train_data[seed]['cost'])
+    all_train_cost = np.array(all_train_cost)
+    mean_rewards = np.mean(all_train_cost, axis=0)
+    sem_rewards = np.std(all_train_cost, axis=0) / np.sqrt(all_train_cost.shape[0])
+    episodes = []
+    for i in range(400):
+        episodes.append(i)
+    plt.rcParams["figure.figsize"] = (16,9) # 设置图表的大小为16x9英寸
+    plt.autoscale(tight=True)
+    critical_value = 1.96  # 对应于95%置信水平
+    margin_error = critical_value * sem_rewards
+    # 绘制均值曲线
+    plt.plot(episodes, mean_rewards, label=name, color=color)
+    # 绘制95%置信区间
+    plt.fill_between(episodes, mean_rewards - margin_error, mean_rewards + margin_error, color=f'light{color}', alpha=0.3)
+    # 添加图例
 
 if __name__=='__main__':
     print('test dir and plot shadow loss with sub figure ')
