@@ -54,8 +54,9 @@ mean_demand = grouped_mean.values
 # 绘制方差作为均值的填充效果
 # 计算每个小时的标准差（方差的平方根）
 std_dev_demand = grouped_var.apply(np.sqrt)
-ax.bar(hours, mean_demand, width=0.4, color='skyblue', label='Mean Demand', alpha=0.7)
-ax.fill_between(hours, mean_demand - std_dev_demand, mean_demand + std_dev_demand, color='lightblue', alpha=0.3, label='Variance Demand')
+ax.plot(hours,mean_demand,drawstyle='steps-mid',label='Price',color='pink')
+ax.fill_between(hours, mean_demand - std_dev_demand, mean_demand + std_dev_demand, color='lightpink', alpha=0.3, step='mid', label='Variance')
+#ax.fill_between(hours, mean_demand - std_dev_demand, mean_demand + std_dev_demand, color='lightblue', alpha=0.3, label='Variance Demand')
 
 # 设置图例
 ax.legend()

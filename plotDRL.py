@@ -215,6 +215,59 @@ def plot_cost_rewardinfo(name,datasource,color):
     plt.fill_between(episodes, mean_rewards - margin_error, mean_rewards + margin_error, color=f'light{color}', alpha=0.3)
     # 添加图例
 
+def plot_cost_rewardinfo_MIP(name,datasource,color):
+    sns.set_theme(style='whitegrid')
+
+    with open(datasource,'rb') as tf:
+        train_data=pickle.load(tf)
+    #plot reward
+    random_seed_list = [1234, 2234, 3234, 4234, 5234]
+    all_train_cost = []
+    for seed in random_seed_list:
+        all_train_cost.append(train_data[seed]['episode_operation_cost'])
+    all_train_cost = np.array(all_train_cost)
+    mean_rewards = np.mean(all_train_cost, axis=0)
+    sem_rewards = np.std(all_train_cost, axis=0) / np.sqrt(all_train_cost.shape[0])
+    episodes = []
+    for i in range(400):
+        episodes.append(i)
+    plt.rcParams["figure.figsize"] = (16,9) # 设置图表的大小为16x9英寸
+    plt.autoscale(tight=True)
+    critical_value = 1.96  # 对应于95%置信水平
+    margin_error = critical_value * sem_rewards
+    # 绘制均值曲线
+    plt.plot(episodes, mean_rewards, label=name, color=color)
+    # 绘制95%置信区间
+    plt.fill_between(episodes, mean_rewards - margin_error, mean_rewards + margin_error, color=f'light{color}', alpha=0.3)
+    # 添加图例
+
+def plot_training_unbalanceinfo(name, datasource, color):
+    sns.set_theme(style='whitegrid')
+
+    with open(datasource, 'rb') as tf:
+        train_data = pickle.load(tf)
+    # plot reward
+    random_seed_list = [1234, 2234, 3234, 4234, 5234]
+    all_train_unbalance = []
+    for seed in random_seed_list:
+        all_train_unbalance.append(train_data[seed]['unbalance'])
+    all_train_unbalance = np.array(all_train_unbalance)
+    mean_rewards = np.mean(all_train_unbalance, axis=0)
+    sem_rewards = np.std(all_train_unbalance, axis=0) / np.sqrt(all_train_unbalance.shape[0])
+    episodes = []
+    for i in range(400):
+        episodes.append(i)
+    plt.rcParams["figure.figsize"] = (16, 9)  # 设置图表的大小为16x9英寸
+    plt.autoscale(tight=True)
+    critical_value = 1.96  # 对应于95%置信水平
+    margin_error = critical_value * sem_rewards
+    # 绘制均值曲线
+    plt.plot(episodes, mean_rewards, label=name, color=color)
+    # 绘制95%置信区间
+    plt.fill_between(episodes, mean_rewards - margin_error, mean_rewards + margin_error, color=f'light{color}',
+                     alpha=0.3)
+    # 添加图例
+
 if __name__=='__main__':
     print('test dir and plot shadow loss with sub figure ')
     plot_training_rewardinfo('D:\桌面\待实现\代码\DRL-for-Energy-Systems-Optimal-Scheduling\AgentDDPG\\reward_data.pkl')

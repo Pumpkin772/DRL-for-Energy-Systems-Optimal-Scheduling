@@ -110,10 +110,10 @@ class Arguments:
         self.num_episode=400
         self.gamma = 0.995  # discount factor of future rewards
         # self.reward_scale = 1  # an approximate target reward usually be closed to 256
-        self.learning_rate = 2 ** -14  # 2 ** -14 ~= 6e-5
-        self.soft_update_tau = 2 ** -8  # 2 ** -8 ~= 5e-3
+        self.learning_rate = 1e-4  # 2 ** -14 ~= 6e-5
+        self.soft_update_tau = 1e-2  # 2 ** -8 ~= 5e-3
 
-        self.net_dim = 256  # the network width 256
+        self.net_dim = 64  # the network width 64
         self.batch_size = 256  # num of transitions sampled from replay buffer.
         self.repeat_times = 2 ** 3  # repeatedly update network to keep critic's loss small
         self.target_step = 1000 # collect target_step experiences , then update network, 1024
