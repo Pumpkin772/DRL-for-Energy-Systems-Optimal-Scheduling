@@ -10,6 +10,8 @@ from pyomo.opt import SolverFactory
 import gurobipy as gp
 from gurobipy import GRB
 from gurobipy import *
+import dill
+
 def optimization_base_result(env,month,day,initial_soc):
 
     pv=env.data_manager.get_series_pv_data(month,day)
@@ -155,7 +157,7 @@ class Arguments:
         torch.set_default_dtype(torch.float32)
 
         os.environ['CUDA_VISIBLE_DEVICES'] = str(self.visible_gpu)# control how many GPU is used 　
-def test_one_episode(env, act, device):
+def test_one_episode(state1, env1, act, device):
     '''to get evaluate information, here record the unblance of after taking action'''
     record_state=[]
     record_action=[]
@@ -166,8 +168,10 @@ def test_one_episode(env, act, device):
     record_system_info=[]# [time price, netload,action,real action, output*4,soc,unbalance(exchange+penalty)]
 
     record_init_info=[]#should include month,day,time,intial soc,initial
+    env = dill.loads(dill.dumps(env1))
+    state = dill.loads(dill.dumps(state1))
     env.TRAIN = False
-    state=env.reset()
+    #state=env.reset()
     record_init_info.append([env.month,env.day,env.current_time,env.battery.current_capacity])
     print(f'current testing month is {env.month}, day is {env.day},initial_soc is {env.battery.current_capacity}' )
     for i in range(24):
@@ -191,16 +195,17 @@ def test_one_episode(env, act, device):
     record={'init_info':record_init_info,'information':record_system_info,'state':record_state,'action':record_action,'reward':record_reward,'cost':record_cost,'unbalance':record_unbalance,'record_output':record_output}
     return record
 
-def test_ten_episodes(env, act, device):
+def test_ten_episodes(state1, env1, act, device):
     '''to get evaluate information, here record the unblance of after taking action'''
     record_reward=[]
 
     record_cost=[]
     record_unbalance=[]
     record_init_info = []  # should include month,day,time,intial soc,initial
-
+    env = dill.loads(dill.dumps(env1))
+    state = dill.loads(dill.dumps(state1))
     env.TRAIN = False
-    state=env.reset()
+    #state=env.reset()
     record_init_info.append([env.month, env.day, env.current_time, env.battery.current_capacity])
     print(f'current testing month is {env.month}, day is {env.day},initial_soc is {env.battery.current_capacity}' )
     cumulate_reward = 0
@@ -230,6 +235,53 @@ def test_ten_episodes(env, act, device):
 
         record={'init_info':record_init_info,'reward':record_reward,'cost':record_cost,'unbalance':record_unbalance}
     return record
+
+def test_ten_episodes_MIP(state1, env1, act, device):
+    '''to get evaluate information, here record the unblance of after taking action'''
+    record_reward=[]
+
+    record_cost=[]
+    record_unbalance=[]
+    record_init_info = []  # should include month,day,time,intial soc,initial
+    env = dill.loads(dill.dumps(env1))
+    state = dill.loads(dill.dumps(state1))
+    env.TRAIN = False
+    #state=env.reset()
+    record_init_info.append([env.month, env.day, env.current_time, env.battery.current_capacity])
+    print(f'current testing month is {env.month}, day is {env.day},initial_soc is {env.battery.current_capacity}' )
+    cumulate_reward = 0
+    cumulate_cost = 0
+    cumulate_unbalance = 0
+    for day in range(10):
+        episode_reward = 0
+        episode_cost = 0
+        episode_unbalance = 0
+        for i in range(24):
+            s_tensor = torch.as_tensor((state,), device=device) #(state,)确保 state 被正确地处理为一个元组,并且自动升维
+            # a_tensor = act(s_tensor)
+            # action = a_tensor.detach().cpu().numpy()[0]  # not need detach(), because with torch.no_grad() outside
+            action = act.predict_best_action(s_tensor)
+            real_action=action
+            state,next_state,reward, done = env.step(action)
+
+            episode_reward += reward
+            episode_unbalance += env.real_unbalance
+            episode_cost += env.operation_cost
+            state = next_state
+        cumulate_reward += episode_reward
+        cumulate_cost += episode_cost
+        cumulate_unbalance += episode_unbalance
+        record_reward.append(cumulate_reward)
+        record_cost.append(cumulate_cost/1000)
+        record_unbalance.append(cumulate_unbalance/1000)
+
+        record={'init_info':record_init_info,'reward':record_reward,'cost':record_cost,'unbalance':record_unbalance}
+    return record
+
+def test_ten_episodes_NLP(env):
+    output_record = optimization_base_result(env, env.month, env.day, env.initial_soc)
+
+
 
 def get_episode_return(env, act, device):
     episode_return = 0.0  # sum of rewards in an episode
