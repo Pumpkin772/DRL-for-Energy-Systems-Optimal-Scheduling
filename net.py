@@ -137,3 +137,70 @@ class CriticTwin(nn.Module):  # shared parameter
     def get_q1_q2(self, state, action):
         tmp = self.net_sa(torch.cat((state, action), dim=1))
         return self.net_q1(tmp), self.net_q2(tmp)  # two Q values
+
+# after adding layer normalization, it doesn't work
+class ActorPPO(nn.Module):
+    def __init__(self, mid_dim, state_dim, action_dim, layer_norm=False):
+        super().__init__()
+        self.net = nn.Sequential(nn.Linear(state_dim, mid_dim), nn.ReLU(),
+                                 nn.Linear(mid_dim, mid_dim), nn.ReLU(),
+                                 nn.Linear(mid_dim, mid_dim), nn.Hardswish(),
+                                 nn.Linear(mid_dim, action_dim), )
+
+        # the logarithm (log) of standard deviation (std) of action, it is a trainable parameter
+        self.a_logstd = nn.Parameter(torch.zeros((1, action_dim)) - 0.5, requires_grad=True)
+        self.sqrt_2pi_log = np.log(np.sqrt(2 * np.pi))
+        if layer_norm:
+            self.layer_norm(self.net)
+
+    @staticmethod
+    def layer_norm(layer, std=1.0, bias_const=0.0):
+        for l in layer:
+            if hasattr(l, 'weight'):
+                torch.nn.init.orthogonal_(l.weight, std)
+                torch.nn.init.constant_(l.bias, bias_const)
+
+    def forward(self, state):
+        return self.net(state).tanh()  # action.tanh()
+
+    def get_action(self, state):
+        a_avg = self.net(state)  # too big for the action
+        a_std = self.a_logstd.exp()
+
+        noise = torch.randn_like(a_avg)
+        action = a_avg + noise * a_std
+        return action, noise
+
+    def get_logprob_entropy(self, state, action):
+        a_avg = self.net(state)
+        a_std = self.a_logstd.exp()
+
+        delta = ((a_avg - action) / a_std).pow(2) * 0.5  # delta here is the diverse between the
+        logprob = -(self.a_logstd + self.sqrt_2pi_log + delta).sum(1)  # new_logprob
+
+        dist_entropy = (logprob.exp() * logprob).mean()  # policy entropy
+        return logprob, dist_entropy
+
+    def get_old_logprob(self, _action, noise):  # noise = action - a_noise
+        delta = noise.pow(2) * 0.5
+        return -(self.a_logstd + self.sqrt_2pi_log + delta).sum(1)  # old_logprob
+
+class CriticAdv_ppo(nn.Module):
+    def __init__(self, mid_dim, state_dim, _action_dim, layer_norm=False):
+        super().__init__()
+        self.net = nn.Sequential(nn.Linear(state_dim, mid_dim), nn.ReLU(),
+                                 nn.Linear(mid_dim, mid_dim), nn.ReLU(),
+                                 nn.Linear(mid_dim, mid_dim), nn.Hardswish(),
+                                 nn.Linear(mid_dim, 1))
+        if layer_norm:
+            self.layer_norm(self.net, std=1.0)
+
+    @staticmethod
+    def layer_norm(layer, std=1.0, bias_const=0.0):
+        for l in layer:
+            if hasattr(l, 'weight'):
+                torch.nn.init.orthogonal_(l.weight, std)
+                torch.nn.init.constant_(l.bias, bias_const)
+
+    def forward(self, state):
+        return self.net(state)  # Advantage value
