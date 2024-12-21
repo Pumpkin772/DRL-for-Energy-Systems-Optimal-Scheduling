@@ -127,9 +127,20 @@ class ESSEnv(gym.Env):
         self.dg2=DG(self.dg_parameters['gen_2'])
         self.dg3=DG(self.dg_parameters['gen_3'])
 
-        self.action_space=spaces.Box(low=-1,high=1,shape=(4,),dtype=np.float32)
-
-        self.state_space=spaces.Box(low=0,high=1,shape=(7,),dtype=np.float32)
+        # define normalized action space
+        # action space here is [output of gen1,outputof gen2, output of gen3, charge/discharge of battery]
+        self.action_space = spaces.Box(low=-1, high=1, shape=(4,), dtype=np.float32)  # seems here doesn't used
+        # state is [time_step,netload,dg_output_last_step]# this time no prive
+        self.state_space = spaces.Box(low=0, high=1, shape=(7,), dtype=np.float32)
+        # set state related normalization reference
+        self.Length_max = 24
+        self.Price_max = max(self.data_manager.Prices)
+        # self.Netload_max=max(self.data_manager.Electricity_Consumption)-max(self.data_manager.PV_Generation)
+        self.Netload_max = max(self.data_manager.Electricity_Consumption)
+        self.SOC_max = self.battery.max_soc
+        self.DG1_max = self.dg1.power_output_max
+        self.DG2_max = self.dg2.power_output_max
+        self.DG3_max = self.dg3.power_output_max
 
     @property
     def netload(self):
@@ -215,14 +226,14 @@ class ESSEnv(gym.Env):
         if finish:
             self.final_step_outputs=final_step_outputs
             self.current_time=0
-            # self.day+=1
-            # if self.day>Constant.MONTHS_LEN[self.month-1]:
-            #     self.day=1
-            #     self.month+=1
-            # if self.month>12:
-            #     self.month=1
-            #     self.day=1
-            next_obs=self.reset()
+            self.day+=1
+            if self.day>Constant.MONTHS_LEN[self.month-1]:
+                self.day=1
+                self.month+=1
+            if self.month>12:
+                self.month=1
+                self.day=1
+            next_obs=self._build_state()
 
         else:
             next_obs=self._build_state()
