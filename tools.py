@@ -75,7 +75,9 @@ def optimization_base_result(env,month,day,initial_soc):
 
     m.setObjective((cost_gen+cost_grid_import-cost_grid_export),GRB.MINIMIZE)
     m.optimize()
-    output_record={'pv':[],'price':[],'load':[],'netload':[],'soc':[],'battery_energy_change':[],'grid_import':[],'grid_export':[],'gen1':[],'gen2':[],'gen3':[],'step_cost':[]}
+    min_cost = m.ObjVal
+    output_record={'pv':[],'price':[],'load':[],'netload':[],'soc':[],'battery_energy_change':[],'grid_import':[],'grid_export':[],'gen1':[],'gen2':[],'gen3':[],'step_cost':[],'min_cost':[]}
+    output_record['min_cost'] = [min_cost]
     for t in range(period):
         gen_cost=sum((on_off[g,t].x*(a_para[g]*gen_output[g,t].x*gen_output[g,t].x+b_para[g]*gen_output[g,t].x+c_para[g])) for g in range(NUM_GEN))
         grid_import_cost=grid_energy_import[t].x*price[t]
@@ -93,8 +95,8 @@ def optimization_base_result(env,month,day,initial_soc):
         output_record['gen3'].append(gen_output[2,t].x)
         output_record['step_cost'].append(gen_cost+grid_import_cost-grid_export_cost)
 
-    output_record_df = pd.DataFrame.from_dict(output_record)
-    return output_record_df
+    #output_record_df = pd.DataFrame.from_dict(output_record)
+    return output_record
 class Arguments:
     '''revise here for our own purpose'''
     def __init__(self, agent=None, env=None):
@@ -278,9 +280,17 @@ def test_ten_episodes_MIP(state1, env1, act, device):
         record={'init_info':record_init_info,'reward':record_reward,'cost':record_cost,'unbalance':record_unbalance}
     return record
 
-def test_ten_episodes_NLP(env):
-    output_record = optimization_base_result(env, env.month, env.day, env.initial_soc)
-
+def test_ten_episodes_cost_NLP(env):
+    cumulate_cost = 0
+    record_cost = []
+    for i in range(10):
+        output_record = optimization_base_result(env, env.month, env.day, env.battery.current_capacity)
+        #output_record = output_record_df.to_dict(orient='list')
+        #output_record={'pv':[],'price':[],'load':[],'netload':[],'soc':[],'battery_energy_change':[],'grid_import':[],'grid_export':[],'gen1':[],'gen2':[],'gen3':[],'step_cost':[]}
+        cumulate_cost += output_record['min_cost'][0]
+        env.day += 1
+        record_cost.append(cumulate_cost / 1000)
+    return record_cost
 
 
 def get_episode_return(env, act, device):
