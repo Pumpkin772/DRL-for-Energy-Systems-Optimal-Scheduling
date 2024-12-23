@@ -19,7 +19,7 @@ def plot_evaluation_information(datasource,directory):
     plt.rcParams["figure.figsize"] = (16,9) # 设置图表的大小为16x9英寸
     fig,axs=plt.subplots(2,2)
 
-    plt.subplots_adjust(wspace=0.7,hspace=0.3) # 调整子图之间的间距
+    plt.subplots_adjust(wspace=0.9,hspace=0.3) # 调整子图之间的间距
     plt.autoscale(tight=True)
     # fig.tight_layout()
     #prepare data for evaluation the environment here 
@@ -75,7 +75,7 @@ def plot_evaluation_information(datasource,directory):
     axs[0,1].set_ylabel('SOC')
     # axs[0,1].set_xticks([i for i in range(24)], [i for i in range(1, 25)])
     axs[0,1].plot(eval_data['time_step'],eval_data['soc'],drawstyle='steps-mid',label='SOC',color='grey')
-    
+    axs[0,1].legend(fontsize=12, frameon=False, labelspacing=0.3, loc=(0.5, 1.05))
     # axs[0,1].legend(fontsize=12, frameon=False,labelspacing=0.3,loc=(0.5, 1.05))
     plt.show()
     # plt.close()
@@ -92,39 +92,39 @@ class PlotArgs():
         self.plot_on=None
 def plot_optimization_result(datasource, directory):  # data source is dataframe
     sns.set_theme(style='whitegrid')
-    plt.rcParams["figure.figsize"] = (16,9)
-    fig, axs = plt.subplots(2, 2)
+    plt.rcParams["figure.figsize"] = (9,16)
+    fig, axs = plt.subplots(3, 1)
     # fig.tight_layout()
-    plt.subplots_adjust(wspace=0.7,hspace=0.3)
+    plt.subplots_adjust(wspace=0.9,hspace=0.3)
     plt.autoscale(tight=True)
     # plt.subplots_adjust(wspace=0.7, hspace=0.3)
     T = np.array([i for i in range(24)])
     # plot step cost
-    axs[0, 0].cla()
-    axs[0, 0].set_ylabel('Costs')
-    axs[0, 0].set_xlabel('Time(h)')
+    axs[0].cla()
+    axs[0].set_ylabel('Costs(D)')
+    axs[0].set_xlabel('Time(h)')
 
-    axs[0, 0].bar(T, datasource['step_cost'])
+    axs[0].bar(T, datasource['step_cost'])
     # axs[0,0].set_xticks([i for i in range(24)],[i for i in range(1,25)])
 
     # plot soc and price at first
-    axs[0, 1].cla()
-    axs[0, 1].set_ylabel('Price')
-    axs[0, 1].set_xlabel('Time(h)')
+    axs[1].cla()
+    axs[1].set_ylabel('Price(D)')
+    axs[1].set_xlabel('Time(h)')
 
-    axs[0, 1].plot(T, datasource['price'], drawstyle='steps-mid', label='Price',  color='pink')
-    axs[0, 1].legend(fontsize=12, frameon=False, labelspacing=0.3, loc=(0.2, 1.05))
-    axs[0, 1] = axs[0, 1].twinx()
+    axs[1].plot(T, datasource['price'], drawstyle='steps-mid', label='Price',  color='pink')
+    axs[1].legend(fontsize=12, frameon=False, labelspacing=0.3, loc=(0.2, 1.05))
+    axs[1] = axs[1].twinx()
 
-    axs[0, 1].set_ylabel('SOC')
-    axs[0, 1].plot(T, datasource['soc'], drawstyle='steps-mid',  label='SOC', color='grey')
+    axs[1].set_ylabel('SOC')
+    axs[1].plot(T, datasource['soc'], drawstyle='steps-mid',  label='SOC', color='grey')
     # axs[0,1].set_xticks([i for i in range(24)],[i for i in range(1,25)])
 
-    axs[0, 1].legend(fontsize=12, frameon=False, labelspacing=0.3, loc=(0.5, 1.05))
+    axs[1].legend(fontsize=12, frameon=False, labelspacing=0.3, loc=(0.5, 1.05))
     # plot accumulated generation and consumption here
-    axs[1, 0].cla()
-    axs[1, 0].set_ylabel('Outputs of DGs and Battery')
-    axs[1,0].set_xlabel('Time(h)')
+    axs[2].cla()
+    axs[2].set_ylabel('Outputs of DGs and Battery(kW)')
+    axs[2].set_xlabel('Time(h)')
     battery_positive = np.array(datasource['battery_energy_change'])
     battery_negative = np.array(datasource['battery_energy_change'])
     battery_negative = np.minimum(battery_negative, 0)  # discharge
@@ -134,19 +134,19 @@ def plot_optimization_result(datasource, directory):  # data source is dataframe
     # exported_2_grid = np.minimum(np.array(datasource['grid_import']), 0)
     imported_from_grid=np.array(datasource['grid_import'])
     exported_2_grid=np.array(datasource['grid_export'])
-    axs[1, 0].bar(T, datasource['gen1'], label='gen1')
-    axs[1, 0].bar(T, datasource['gen2'], label='gen2', bottom=datasource['gen1'])
-    axs[1, 0].bar(T, datasource['gen3'], label='gen3', bottom=datasource['gen2'] + datasource['gen1'])
-    axs[1, 0].bar(T, -battery_positive, color='blue', hatch='/', label='battery charge')
-    axs[1, 0].bar(T, -battery_negative, hatch='/', label='battery discharge',
+    axs[2].bar(T, datasource['gen1'], label='gen1')
+    axs[2].bar(T, datasource['gen2'], label='gen2', bottom=datasource['gen1'])
+    axs[2].bar(T, datasource['gen3'], label='gen3', bottom=datasource['gen2'] + datasource['gen1'])
+    axs[2].bar(T, -battery_positive, color='blue', hatch='/', label='battery charge')
+    axs[2].bar(T, -battery_negative, hatch='/', label='battery discharge',
                   bottom=datasource['gen3'] + datasource['gen2'] + datasource['gen1'])
     # import as generate
-    axs[1, 0].bar(T, imported_from_grid, label='import from grid',
+    axs[2].bar(T, imported_from_grid, label='import from grid',
                   bottom=-battery_negative + datasource['gen3'] + datasource['gen2'] + datasource['gen1'])
     # export as load
-    axs[1, 0].bar(T, -exported_2_grid, label='export to grid', bottom=-battery_positive)
-    axs[1, 0].plot(T, datasource['netload'], label='netload',  drawstyle='steps-mid', alpha=0.7)
-    axs[1, 0].legend(fontsize=12, frameon=False, labelspacing=0.3, loc=(1.05, 0.5))
+    axs[2].bar(T, -exported_2_grid, label='export to grid', bottom=-battery_positive)
+    axs[2].plot(T, datasource['netload'], label='netload',  drawstyle='steps-mid', alpha=0.7)
+    axs[2].legend(fontsize=12, frameon=False, labelspacing=0.3, loc=(1.05, 0.5))
     # axs[1,0].set_xticks([i for i in range(24)],[i for i in range(1,25)])
     # plt.show()
     # plt.close()
