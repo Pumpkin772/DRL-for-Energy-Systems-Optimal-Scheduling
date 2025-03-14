@@ -286,6 +286,10 @@ script_name=os.path.basename(__file__)
 #         os.environ['CUDA_VISIBLE_DEVICES'] = str(self.visible_gpu)
 
 def update_buffer(_trajectory):
+    # *将_trajectory 解包为多个独立参数，相当于将每个时间步的数据视为一列
+    # zip将多个可迭代对象中 对应位置 的元素打包成元组
+    # map 对 zip 输出的每个元组执行 list() 转换
+    # 将 map 输出的迭代器转换为一个列表的列表
     _trajectory = list(map(list, zip(*_trajectory)))  # 2D-list transpose, here cut the trajectory into 5 parts 
     ten_state = torch.as_tensor(_trajectory[0])#tensor state here 
     # ten_reward = torch.as_tensor(_trajectory[1], dtype=torch.float32) * reward_scale# tensor reward here
