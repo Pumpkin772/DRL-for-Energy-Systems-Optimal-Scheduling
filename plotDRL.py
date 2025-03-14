@@ -48,7 +48,7 @@ def plot_evaluation_information(datasource,directory):
 
     battery_negative=np.minimum(battery_negative,0)#  discharge 
     battery_positive=np.maximum(battery_positive,0)# charge 
-    # deal with power exchange within the figure 
+    # deal with power exchange within the figure
     imported_from_grid=np.minimum(np.array(eval_data['unbalance']),0)
     exported_2_grid=np.maximum(np.array(eval_data['unbalance']),0)
     # print(battery_negative)
@@ -198,7 +198,7 @@ def plot_cost_rewardinfo(name,datasource,color):
     random_seed_list = [1234, 2234, 3234, 4234, 5234]
     all_train_cost = []
     for seed in random_seed_list:
-        all_train_cost.append(train_data[seed]['cost'])
+        all_train_cost.append(train_data[seed]['episode_operation_cost'])
     all_train_cost = np.array(all_train_cost)
     mean_rewards = np.mean(all_train_cost, axis=0)
     sem_rewards = np.std(all_train_cost, axis=0) / np.sqrt(all_train_cost.shape[0])

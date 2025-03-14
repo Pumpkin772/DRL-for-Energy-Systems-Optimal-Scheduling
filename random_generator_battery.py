@@ -105,27 +105,31 @@ class Grid():
         for item in self.price[24*self.day:(24*self.day+self.time)]:
             result.append(item)
         return result
-class ESSEnv(gym.Env):
-    def __init__(self,**kwargs):
-        super(ESSEnv,self).__init__()
-        #parameters
-        self.data_manager=DataManager()
-        self._load_year_data()
-        self.episode_length=kwargs.get('episode_length',24)
-        self.month=None
-        self.day=None
-        self.TRAIN=True
-        self.current_time=None
-        self.battery_parameters=kwargs.get('battery_parameters',battery_parameters)
-        self.dg_parameters=kwargs.get('dg_parameters',dg_parameters)
-        self.penalty_coefficient=50#control soft penalty constrain 原文中的σ2
-        self.sell_coefficient=0.5# control sell benefits 原文中的β
 
-        self.grid=Grid()
-        self.battery=Battery(self.battery_parameters)
-        self.dg1=DG(self.dg_parameters['gen_1'])
-        self.dg2=DG(self.dg_parameters['gen_2'])
-        self.dg3=DG(self.dg_parameters['gen_3'])
+class ESSEnv(gym.Env):
+    '''ENV descirption:
+    the agent learn to charge with low price and then discharge at high price, in this way, it could get benefits'''
+
+    def __init__(self, **kwargs):
+        super(ESSEnv, self).__init__()
+        # parameters
+        self.data_manager = DataManager()
+        self._load_year_data()
+        self.episode_length = kwargs.get('episode_length', 24)  # 如果键存在，返回对应的值；如果键不存在，则返回方法的第二个参数作为默认值。
+        self.month = None
+        self.day = None
+        self.TRAIN = True
+        self.current_time = None
+        self.battery_parameters = kwargs.get('battery_parameters', battery_parameters)
+        self.dg_parameters = kwargs.get('dg_parameters', dg_parameters)
+        self.penalty_coefficient = 20  # control soft penalty constrain
+        self.sell_coefficient = 0.5  # control sell benefits
+        # instant the components of the environment
+        self.grid = Grid()
+        self.battery = Battery(self.battery_parameters)
+        self.dg1 = DG(self.dg_parameters['gen_1'])
+        self.dg2 = DG(self.dg_parameters['gen_2'])
+        self.dg3 = DG(self.dg_parameters['gen_3'])
 
         # define normalized action space
         # action space here is [output of gen1,outputof gen2, output of gen3, charge/discharge of battery]
@@ -142,125 +146,134 @@ class ESSEnv(gym.Env):
         self.DG2_max = self.dg2.power_output_max
         self.DG3_max = self.dg3.power_output_max
 
-    @property
-    def netload(self):
+    def reset(self):
+        '''reset is used for initialize the environment, decide the day of month.'''
+        self.month = np.random.randint(1, 13)  # here we choose 12 month
 
-        return self.demand-self.grid.wp_gen-self.grid.pv_gen
-
-    def reset(self,):
-        self.month=np.random.randint(1,13)# here we choose 12 month
         if self.TRAIN:
-            self.day=np.random.randint(1,21)
+            self.day = np.random.randint(1, 21)
         else:
-            self.day=np.random.randint(21,Constant.MONTHS_LEN[self.month-1]+1)
-        self.current_time=0
+            self.day = np.random.randint(21, Constant.MONTHS_LEN[self.month - 1])
+        self.current_time = 0
         self.battery.reset()
         self.dg1.reset()
         self.dg2.reset()
         self.dg3.reset()
         return self._build_state()
+
     def _build_state(self):
-        soc=self.battery.SOC()
-        dg1_output=self.dg1.current_output
-        dg2_output=self.dg2.current_output
-        dg3_output=self.dg3.current_output
-        time_step=self.current_time
-        electricity_demand=self.data_manager.get_electricity_cons_data(self.month,self.day,self.current_time)
-        pv_generation=self.data_manager.get_pv_data(self.month,self.day,self.current_time)
-        price=self.data_manager.get_price_data(self.month,self.day,self.current_time)
-        net_load=electricity_demand-pv_generation
-        obs=np.concatenate((np.float32(time_step),np.float32(price),np.float32(soc),np.float32(net_load),np.float32(dg1_output),np.float32(dg2_output),np.float32(dg3_output)),axis=None)
+        # we put all original information into state and then transfer it into normalized state
+        soc = self.battery.SOC() / self.SOC_max
+        dg1_output = self.dg1.current_output / self.DG1_max
+        dg2_output = self.dg2.current_output / self.DG2_max
+        dg3_output = self.dg3.current_output / self.DG3_max
+        time_step = self.current_time / (self.Length_max - 1) # current_time为当前小时数
+        electricity_demand = self.data_manager.get_electricity_cons_data(self.month, self.day, self.current_time)
+        pv_generation = self.data_manager.get_pv_data(self.month, self.day, self.current_time)
+        price = self.data_manager.get_price_data(self.month, self.day, self.current_time) / self.Price_max
+        net_load = (electricity_demand - pv_generation) / self.Netload_max
+        obs = np.concatenate((np.float32(time_step), np.float32(price), np.float32(soc), np.float32(net_load),
+                              np.float32(dg1_output), np.float32(dg2_output), np.float32(dg3_output)), axis=None)
         return obs
 
-    def step(self,action):# state transition here current_obs--take_action--get reward-- get_finish--next_obs
+    def step(self, action):  # state transition here current_obs--take_action--get reward-- get_finish--next_obs
         ## here we want to put take action into each components
-        current_obs=self._build_state()
-        self.battery.step(action[0])# here execute the state-transition part, battery.current_capacity also changed
+        current_obs = self._build_state()
+        self.battery.step(action[0])  # here execute the state-transition part, battery.current_capacity also changed
         self.dg1.step(action[1])
         self.dg2.step(action[2])
         self.dg3.step(action[3])
-        current_output=np.array((self.dg1.current_output,self.dg2.current_output,self.dg3.current_output,-self.battery.energy_change))#truely corresonding to the result
-        self.current_output=current_output
-        actual_production=sum(current_output)
-        netload=current_obs[3]
-        price=current_obs[1]
+        current_output = np.array((self.dg1.current_output, self.dg2.current_output, self.dg3.current_output,
+                                   -self.battery.energy_change))  # truely corresonding to the result
+        self.current_output = current_output
+        actual_production = sum(current_output)
+        # transfer to normal_state
+        netload = current_obs[3] * self.Netload_max
+        price = current_obs[1] * self.Price_max
 
-        unbalance=actual_production-netload #unbanlce是需要从电网导入的功率，在执行任何操作后，从主网络导出/导入电力以维持电力平衡
+        unbalance = actual_production - netload
 
-        reward=0
-        excess_penalty=0
-        deficient_penalty=0
-        sell_benefit=0
-        buy_cost=0
-        self.excess=0
-        self.shedding=0
-        if unbalance>=0:# it is now in excess condition
-            if unbalance<=self.grid.exchange_ability:
-                sell_benefit=self.grid._get_cost(price,unbalance)*self.sell_coefficient #sell money to grid is little [0.029,0.1]
+        reward = 0
+        excess_penalty = 0
+        deficient_penalty = 0
+        sell_benefit = 0
+        buy_cost = 0
+        self.excess = 0
+        self.shedding = 0
+        # logic here is: if unbalance >0 then it is production excess, so the excessed output should sold to power grid to get benefits
+        if unbalance >= 0:  # it is now in excess condition
+            if unbalance <= self.grid.exchange_ability:
+                sell_benefit = self.grid._get_cost(price,
+                                                   unbalance) * self.sell_coefficient  # sell money to grid is little [0.029,0.1]
             else:
-                sell_benefit=self.grid._get_cost(price,self.grid.exchange_ability)*self.sell_coefficient
-                #real unbalance that even grid could not meet
-                self.excess=unbalance-self.grid.exchange_ability
-                excess_penalty=self.excess*self.penalty_coefficient
-        else:# unbalance <0, its load shedding model, in this case, deficient penalty is used
-            if abs(unbalance)<=self.grid.exchange_ability:
-                buy_cost=self.grid._get_cost(price,abs(unbalance))
+                sell_benefit = self.grid._get_cost(price, self.grid.exchange_ability) * self.sell_coefficient
+                # real unbalance that even grid could not meet
+                self.excess = unbalance - self.grid.exchange_ability
+                excess_penalty = self.excess * self.penalty_coefficient
+        else:  # unbalance <0, its load shedding model, in this case, deficient penalty is used
+            if abs(unbalance) <= self.grid.exchange_ability:
+                buy_cost = self.grid._get_cost(price, abs(unbalance))
             else:
-                buy_cost=self.grid._get_cost(price,self.grid.exchange_ability)
-                self.shedding=abs(unbalance)-self.grid.exchange_ability
-                deficient_penalty=self.shedding*self.penalty_coefficient
-        battery_cost=self.battery._get_cost(self.battery.energy_change)# we set it as 0 this time
-        dg1_cost=self.dg1._get_cost(self.dg1.current_output)
-        dg2_cost=self.dg2._get_cost(self.dg2.current_output)
-        dg3_cost=self.dg3._get_cost(self.dg3.current_output)
+                buy_cost = self.grid._get_cost(price, self.grid.exchange_ability)
+                self.shedding = abs(unbalance) - self.grid.exchange_ability
+                deficient_penalty = self.shedding * self.penalty_coefficient
+        battery_cost = self.battery._get_cost(self.battery.energy_change)  # we set it as 0 this time
+        dg1_cost = self.dg1._get_cost(self.dg1.current_output)
+        dg2_cost = self.dg2._get_cost(self.dg2.current_output)
+        dg3_cost = self.dg3._get_cost(self.dg3.current_output)
 
-        reward-=(battery_cost+dg1_cost+dg2_cost+dg3_cost+excess_penalty+
-        deficient_penalty-sell_benefit+buy_cost)/1e3
-        #self.operation_cost=battery_cost+dg1_cost+dg2_cost+dg3_cost+buy_cost-sell_benefit+excess_penalty+deficient_penalty
-        self.operation_cost = battery_cost + dg1_cost + dg2_cost + dg3_cost + buy_cost - sell_benefit
-        self.unbalance=unbalance
-        self.real_unbalance=self.shedding+self.excess
-        final_step_outputs=[self.dg1.current_output,self.dg2.current_output,self.dg3.current_output,self.battery.current_capacity]
-        self.current_time+=1 #小时数+1
-        finish=(self.current_time==self.episode_length) #每个episode为一天
+        reward = -(battery_cost + dg1_cost + dg2_cost + dg3_cost + excess_penalty +
+                   deficient_penalty - sell_benefit + buy_cost) / 2e3
+
+        self.operation_cost = battery_cost + dg1_cost + dg2_cost + dg3_cost + buy_cost - sell_benefit + (
+                self.shedding + self.excess) * self.penalty_coefficient
+
+        self.unbalance = unbalance
+        self.real_unbalance = self.shedding + self.excess
+        '''here we also need to store the final step outputs for the final steps including, soc, output of units for seeing the final states'''
+        final_step_outputs = [self.dg1.current_output, self.dg2.current_output, self.dg3.current_output,
+                              self.battery.current_capacity]
+        self.current_time += 1
+        finish = (self.current_time == self.episode_length)
         if finish:
-            self.final_step_outputs=final_step_outputs
-            self.current_time=0
-            self.day+=1
-            if self.day>Constant.MONTHS_LEN[self.month-1]:
-                self.day=1
-                self.month+=1
-            if self.month>12:
-                self.month=1
-                self.day=1
-            next_obs=self._build_state()
+            self.final_step_outputs = final_step_outputs
+            self.current_time = 0
+            next_obs = self.reset()
 
         else:
-            next_obs=self._build_state()
-        return current_obs,next_obs,float(reward),finish
+            next_obs = self._build_state()
+        return current_obs, next_obs, float(reward), finish
+
     def render(self, current_obs, next_obs, reward, finish):
-        print('day={},hour={:2d}, state={}, next_state={}, reward={:.4f}, terminal={}\n'.format(self.day,self.current_time, current_obs, next_obs, reward, finish))
+        print('day={},hour={:2d}, state={}, next_state={}, reward={:.4f}, terminal={}\n'.format(self.day,
+                                                                                                self.current_time,
+                                                                                                current_obs, next_obs,
+                                                                                                reward, finish))
+
     def _load_year_data(self):
-        pv_df=pd.read_csv('data/PV.csv',sep=';')
-        #hourly price data for a year
-        price_df=pd.read_csv('data/Prices.csv',sep=';')
-        # mins electricity consumption data for a year 
-        electricity_df=pd.read_csv('data/H4.csv',sep=';')
-        pv_data=pv_df['P_PV_'].apply(lambda x: x.replace(',','.')).to_numpy(dtype=float)
-        price=price_df['Price'].apply(lambda x:x.replace(',','.')).to_numpy(dtype=float)
-        electricity=electricity_df['Power'].apply(lambda x:x.replace(',','.')).to_numpy(dtype=float)
+        '''this private function is used to load the electricity consumption, pv generation and related prices in a year as
+        a one hour resolution, with the cooperation of class DataProcesser and then all these data are stored in data processor'''
+        pv_df = pd.read_csv('data/PV.csv', sep=';')
+        # hourly price data for a year
+        price_df = pd.read_csv('data/Prices.csv', sep=';')
+        # mins electricity consumption data for a year
+        electricity_df = pd.read_csv('data/H4.csv', sep=';')
+        pv_data = pv_df['P_PV_'].apply(lambda x: x.replace(',', '.')).to_numpy(dtype=float)
+        price = price_df['Price'].apply(lambda x: x.replace(',', '.')).to_numpy(dtype=float)
+        electricity = electricity_df['Power'].apply(lambda x: x.replace(',', '.')).to_numpy(dtype=float)
         # netload=electricity-pv_data
         '''we carefully redesign the magnitude for price and amount of generation as well as demand'''
         for element in pv_data:
-            self.data_manager.add_pv_element(element*200)
+            self.data_manager.add_pv_element(element * 100)
         for element in price:
-            element/=10
-            if element<=0.5:
-                element=0.5
+            element /= 10
+            if element <= 0.5:
+                element = 0.5
             self.data_manager.add_price_element(element)
-        for i in range(0,electricity.shape[0],60):
-            element=electricity[i:i+60]
-            self.data_manager.add_electricity_element(sum(element)*300)
+        for i in range(0, electricity.shape[0], 60):
+            element = electricity[i:i + 60]
+            self.data_manager.add_electricity_element(sum(element) * 300)
+    ## test environment
 if __name__ == '__main__':
     env=ESSEnv()
     env.TRAIN=False
