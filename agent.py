@@ -372,7 +372,7 @@ class AgentPPO:
 
     def select_action(self, state):
         states = torch.as_tensor((state,), dtype=torch.float32, device=self.device)
-        actions, noises = self.act.get_action(states)
+        actions, noises = self.act.get_action(states) # 避免重新生成噪声，生成误差
         return actions[0].detach().cpu().numpy(), noises[0].detach().cpu().numpy()
 
     def explore_env(self, env, target_step):
@@ -451,7 +451,7 @@ class AgentPPO:
             pre_r_sum = buf_r_sum[i]
         buf_advantage = buf_r_sum - (buf_mask * buf_value[:, 0])
         return buf_r_sum, buf_advantage
-
+    #广义优势估计（GAE），为每个时间步的状态生成优势值，其核心作用是平衡短期和长期的回报估计
     def get_reward_sum_gae(self, buf_len, ten_reward, ten_mask, ten_value) -> (torch.Tensor, torch.Tensor):
         buf_r_sum = torch.empty(buf_len, dtype=torch.float32, device=self.device)  # old policy value
         buf_advantage = torch.empty(buf_len, dtype=torch.float32, device=self.device)  # advantage value

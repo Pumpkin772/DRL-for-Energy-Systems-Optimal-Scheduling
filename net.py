@@ -65,7 +65,7 @@ class ActorSAC(nn.Module):
         a_tan = (a_avg + a_std * noise).tanh()  # action.tanh()
 
         log_prob = a_std_log + self.log_sqrt_2pi + noise.pow(2).__mul__(0.5)  # noise.pow(2) * 0.5
-        log_prob = log_prob + (-a_tan.pow(2) + 1.000001).log()  # fix log_prob using the derivative of action.tanh()
+        log_prob = log_prob + (-a_tan.pow(2) + 1.000001).log()  # fix log_prob using the derivative of action.tanh() 雅可比行列式修正
         return a_tan, log_prob.sum(1, keepdim=True)
 
 
@@ -90,7 +90,7 @@ class ActorPPO(nn.Module):
         #standard deviation 
         a_std = self.a_std_log.exp()
 
-        noise = torch.randn_like(a_avg)
+        noise = torch.randn_like(a_avg) # 高斯噪声
         action = a_avg + noise * a_std
         return action, noise
 
@@ -104,7 +104,7 @@ class ActorPPO(nn.Module):
         dist_entropy = (logprob.exp() * logprob).mean()  # policy entropy
         return logprob, dist_entropy
 
-    def get_old_logprob(self, _action, noise):  # noise = action - a_noise
+    def get_old_logprob(self, _action, noise):  # noise = (action - a_noise)/a_std
         delta = noise.pow(2) * 0.5
         return -(self.a_std_log + self.sqrt_2pi_log + delta).sum(1)  # old_logprob
 
@@ -160,7 +160,8 @@ class ActorPPO(nn.Module):
                                  nn.Linear(mid_dim, mid_dim), nn.Hardswish(),
                                  nn.Linear(mid_dim, action_dim), )
 
-        # the logarithm (log) of standard deviation (std) of action, it is a trainable parameter
+        # torch.zeros((1, action_dim)-0.5 创建了一个全为 -0.5 的形状为 (1, action_dim) 的二维张量，其中 action_dim 代表动作空间的维度
+        # nn.Parameter是 PyTorch 中用于将一个张量转换为可训练参数的类。当一个张量被包装成 nn.Parameter 后，它会被自动添加到模型的参数列表中，并且可以在训练过程中被优化器更新
         self.a_logstd = nn.Parameter(torch.zeros((1, action_dim)) - 0.5, requires_grad=True)
         self.sqrt_2pi_log = np.log(np.sqrt(2 * np.pi))
         if layer_norm:
@@ -170,8 +171,8 @@ class ActorPPO(nn.Module):
     def layer_norm(layer, std=1.0, bias_const=0.0):
         for l in layer:
             if hasattr(l, 'weight'):
-                torch.nn.init.orthogonal_(l.weight, std)
-                torch.nn.init.constant_(l.bias, bias_const)
+                torch.nn.init.orthogonal_(l.weight, std)# 正交初始化：缓解梯度消失/爆炸，提升训练稳定性。
+                torch.nn.init.constant_(l.bias, bias_const)# 常数偏置
 
     def forward(self, state):
         return self.net(state).tanh()  # action.tanh()
@@ -190,11 +191,11 @@ class ActorPPO(nn.Module):
 
         delta = ((a_avg - action) / a_std).pow(2) * 0.5  # delta here is the diverse between the
         logprob = -(self.a_logstd + self.sqrt_2pi_log + delta).sum(1)  # new_logprob
-
+        # 加入熵正则项，增加策略探索性
         dist_entropy = (logprob.exp() * logprob).mean()  # policy entropy
         return logprob, dist_entropy
 
-    def get_old_logprob(self, _action, noise):  # noise = action - a_noise
+    def get_old_logprob(self, _action, noise):  # noise = (action - a_noise)/a_std
         delta = noise.pow(2) * 0.5
         return -(self.a_logstd + self.sqrt_2pi_log + delta).sum(1)  # old_logprob
 
