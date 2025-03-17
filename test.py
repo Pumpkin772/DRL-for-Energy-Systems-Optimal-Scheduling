@@ -3,9 +3,10 @@ import torch
 import pandas as pd
 from plotDRL import plot_training_rewardinfo, plot_evaluation_information, plot_cost_rewardinfo
 import matplotlib.pyplot as plt
-from DDPG import AgentDDPG
+from agent import AgentDDPG, AgentTD3_with_safe_action
 from tools import test_one_episode, test_ten_episodes_cost_NLP
 from random_generator_battery import ESSEnv
+from tools import Arguments, test_ten_episodes_safe
 # datasource1 = 'D:\桌面\待实现\代码\DRL-for-Energy-Systems-Optimal-Scheduling\AgentPPO\\all_seeds_reward_record.pkl'
 # datasource2 = 'D:\桌面\待实现\代码\DRL-for-Energy-Systems-Optimal-Scheduling\AgentDDPG\\all_seeds_reward_record.pkl'
 # with open(datasource2, 'rb') as tf:
@@ -24,7 +25,15 @@ from random_generator_battery import ESSEnv
 # with open(test_data_save_path, 'rb') as tf:
 #     test2 = pickle.load(tf)
 # print(test2['unbalance'])
+act_save_path = "D:\桌面\待实现\代码\DRL-for-Energy-Systems-Optimal-Scheduling\AgentTD3_with_safe_action\\actor.pth"
+agent = AgentTD3_with_safe_action()
+args=Arguments()
 env = ESSEnv()
-state = env.reset()
-record = test_ten_episodes_cost_NLP(env)
+agent.state = env.reset()
+agent.init(args.net_dim, env.state_space.shape[0], env.action_space.shape[0], args.learning_rate,
+           args.if_per_or_gae)
+agent.act.load_state_dict(torch.load(act_save_path))
+record = test_ten_episodes_safe(agent.state, env, agent.act, agent.device)
 print(record)
+# record = test_ten_episodes_cost_NLP(env)
+# print(record)

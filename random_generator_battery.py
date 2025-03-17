@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import gym
 from gym import spaces
+import pyomo.environ as pyo
 
 from Parameters import battery_parameters,dg_parameters
 
@@ -161,6 +162,100 @@ class ESSEnv(gym.Env):
         self.dg3.reset()
         return self._build_state()
 
+    def get_safe_action(self,action):
+        electricity_demand = self.data_manager.get_electricity_cons_data(self.month, self.day, self.current_time)
+        pv_generation = self.data_manager.get_pv_data(self.month, self.day, self.current_time)
+        price = self.data_manager.get_price_data(self.month, self.day, self.current_time) / self.Price_max
+        dg1_output = float(self.dg1.current_output)  # 转换为Python float
+        dg2_output = float(self.dg2.current_output)
+        dg3_output = float(self.dg3.current_output)
+        action = action.flatten()  # 转换为一维数组
+        N = action.shape[0]
+        ramping_up1 = 100
+        ramping_up2 = 100
+        ramping_up3 = 200
+        power_output_max1 = 150
+        power_output_max2 = 375
+        power_output_max3 = 500
+        power_output_min1 = 10
+        power_output_min2 = 50
+        power_output_min3 = 100
+        exchange_ability = 100
+        max_charge = 100
+        current_capacity = float(self.battery.SOC())
+        capacity = 500
+
+        m = pyo.ConcreteModel()
+        m.N = pyo.Set(initialize=range(N), ordered=False)
+        # 使用Python原生类型初始化参数
+        m.dg1 = pyo.Param(default=dg1_output, mutable=False)
+        m.dg2 = pyo.Param(default=dg2_output, mutable=False)
+        m.dg3 = pyo.Param(default=dg3_output, mutable=False)
+        m.ramp1 = pyo.Param(default=ramping_up1, mutable=False)
+        m.ramp2 = pyo.Param(default=ramping_up2, mutable=False)
+        m.ramp3 = pyo.Param(default=ramping_up3, mutable=False)
+        m.power_output_max1 = pyo.Param(default=power_output_max1, mutable=False)
+        m.power_output_max2 = pyo.Param(default=power_output_max2, mutable=False)
+        m.power_output_max3 = pyo.Param(default=power_output_max3, mutable=False)
+        m.power_output_min1 = pyo.Param(default=power_output_min1, mutable=False)
+        m.power_output_min2 = pyo.Param(default=power_output_min2, mutable=False)
+        m.power_output_min3 = pyo.Param(default=power_output_min3, mutable=False)
+        m.exchange_ability = pyo.Param(default=exchange_ability, mutable=False)
+        m.max_charge = pyo.Param(default=max_charge, mutable=False)
+        m.current_capacity = pyo.Param(default=current_capacity, mutable=False)
+        m.capacity = pyo.Param(default=capacity, mutable=False)
+
+        # 正确初始化动作变量
+        initial_action = {i: float(action[i]) for i in range(N)}  # 确保标量初始化
+        m.action = pyo.Var(m.N, initialize=initial_action, bounds=(-1, 1))
+        # m.exchange = pyo.Var(initialize=0.0, bounds=(-1, 1))  # 使用Python float
+
+
+
+        m.con11 = pyo.Constraint(expr=(m.action[1]*m.ramp1 + m.dg1) >= m.power_output_min1)
+        m.con12 = pyo.Constraint(expr=(m.action[1] * m.ramp1 + m.dg1) <= m.power_output_max1)
+        m.con21 = pyo.Constraint(expr=(m.action[2]*m.ramp2 + m.dg2) >= m.power_output_min2)
+        m.con22 = pyo.Constraint(expr=(m.action[2] * m.ramp2 + m.dg2) <= m.power_output_max2)
+        m.con31 = pyo.Constraint(expr=(m.action[3]*m.ramp3 + m.dg3) >= m.power_output_min3)
+        m.con32 = pyo.Constraint(expr=(m.action[3] * m.ramp3 + m.dg3) <= m.power_output_max3)
+        m.con_battery1 = pyo.Constraint(expr=(m.max_charge*m.action[0] + m.current_capacity*m.capacity)/m.capacity >= 0.2)
+        m.con_battery2 = pyo.Constraint(expr=(m.max_charge * m.action[0] + m.current_capacity*m.capacity) / m.capacity <= 0.8)
+        m.con_balance1 = pyo.Constraint(expr=m.action[1]*m.ramp1 + m.dg1 + m.action[2]*m.ramp2 + m.dg2 + m.action[3]*m.ramp3 + m.dg3
+                                                + pv_generation - electricity_demand - (m.max_charge*m.action[0])<= m.exchange_ability)
+        m.con_balance2 = pyo.Constraint(
+            expr=m.action[1] * m.ramp1 + m.dg1 + m.action[2] * m.ramp2 + m.dg2 + m.action[3] * m.ramp3 + m.dg3
+                     + pv_generation - electricity_demand - (
+                                 m.max_charge * m.action[0]) >= -m.exchange_ability)
+        def obj_rule(m):
+            return sum((m.action[i]-action[i])**2 for i in m.N)
+        m.obj = pyo.Objective(expr=obj_rule, sense=pyo.minimize)
+        pyo.SolverFactory('gurobi').solve(m, tee=False) # Gurobi求解器在不可行时仍保存最近可行解
+
+        '''here we need to check the printed model for each constrain, are they satisfied for the real part'''
+        unbalance = (
+                pyo.value(m.action[1]) * m.ramp1 + m.dg1
+                + pyo.value(m.action[2]) * m.ramp2 + m.dg2
+                + pyo.value(m.action[3]) * m.ramp3 + m.dg3
+                + pv_generation
+                - electricity_demand
+                - (m.max_charge * pyo.value(m.action[0]))
+        )
+
+        # 提取安全动作
+        safe_action = [pyo.value(m.action[i]) for i in m.N]
+        # print(f"safe当前时刻参数：\n"
+        #       f"DG1当前输出：{pyo.value(m.action[1]) * m.ramp1 + m.dg1} | \n"
+        #       f"DG2当前输出：{pyo.value(m.action[2]) * m.ramp2 + m.dg2} | \n"
+        #       f"DG3当前输出：{pyo.value(m.action[3]) * m.ramp3 + m.dg3} | \n"
+        #       f"电池当前SOC：{(pyo.value(m.max_charge)*pyo.value(m.action[0]) + pyo.value(m.current_capacity)*pyo.value(m.capacity))/pyo.value(m.capacity)} | \n"
+        #       f"光伏发电：{pv_generation} | 电力需求：{electricity_demand}\n"
+        #       f"电池输出：{m.max_charge * pyo.value(m.action[0])}\n"
+        #       f"初始动作值：{safe_action}")
+        # print(f"safe不平衡度{unbalance}")
+
+        return np.array(safe_action)
+
+
     def _build_state(self):
         # we put all original information into state and then transfer it into normalized state
         soc = self.battery.SOC() / self.SOC_max
@@ -192,7 +287,16 @@ class ESSEnv(gym.Env):
         price = current_obs[1] * self.Price_max
 
         unbalance = actual_production - netload
-
+        electricity_demand = self.data_manager.get_electricity_cons_data(self.month, self.day, self.current_time)
+        pv_generation = self.data_manager.get_pv_data(self.month, self.day, self.current_time)
+        # print(f"env当前时刻参数：\n"
+        #       f"DG1当前输出：{self.dg1.current_output} | \n"
+        #       f"DG2当前输出：{self.dg2.current_output} | \n"
+        #       f"DG3当前输出：{self.dg3.current_output} | \n"
+        #       f"电池当前SOC：{self.battery.current_capacity} |\n"
+        #       f"光伏发电：{pv_generation} | 电力需求：{electricity_demand}\n"
+        #       f"电池输出：{self.battery.energy_change}\n"
+        #       f"初始动作值：{action}")
         reward = 0
         excess_penalty = 0
         deficient_penalty = 0
@@ -201,6 +305,7 @@ class ESSEnv(gym.Env):
         self.excess = 0
         self.shedding = 0
         # logic here is: if unbalance >0 then it is production excess, so the excessed output should sold to power grid to get benefits
+        # print(f"env不平衡度_env{unbalance}")
         if unbalance >= 0:  # it is now in excess condition
             if unbalance <= self.grid.exchange_ability:
                 sell_benefit = self.grid._get_cost(price,

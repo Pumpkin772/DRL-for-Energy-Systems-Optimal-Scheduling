@@ -111,7 +111,7 @@ class Arguments:
         self.num_threads = 8  # cpu_num for evaluate model, torch.set_num_threads(self.num_threads)
 
         '''Arguments for training'''
-        self.num_episode=400
+        self.num_episode=50
         self.gamma = 0.995  # discount factor of future rewards
         # self.reward_scale = 1  # an approximate target reward usually be closed to 256
         self.learning_rate = 1e-4  # 2 ** -14 ~= 6e-5
@@ -238,6 +238,48 @@ def test_ten_episodes(state1, env1, act, device):
         record={'init_info':record_init_info,'reward':record_reward,'cost':record_cost,'unbalance':record_unbalance}
     return record
 
+def test_ten_episodes_safe(state1, env1, act, device):
+    '''to get evaluate information, here record the unblance of after taking action'''
+    record_reward=[]
+
+    record_cost=[]
+    record_unbalance=[]
+    record_init_info = []  # should include month,day,time,intial soc,initial
+    env = dill.loads(dill.dumps(env1))
+    state = dill.loads(dill.dumps(state1))
+    env.TRAIN = False
+    #state=env.reset()
+    record_init_info.append([env.month, env.day, env.current_time, env.battery.current_capacity])
+    print(f'current testing month is {env.month}, day is {env.day},initial_soc is {env.battery.current_capacity}' )
+    cumulate_reward = 0
+    cumulate_cost = 0
+    cumulate_unbalance = 0
+    for day in range(10):
+        episode_reward = 0
+        episode_cost = 0
+        episode_unbalance = 0
+        for i in range(24):
+            s_tensor = torch.as_tensor((state,), device=device) #(state,)确保 state 被正确地处理为一个元组,并且自动升维
+            a_tensor = act(s_tensor)
+            action = a_tensor.detach().cpu().numpy()[0]  # not need detach(), because with torch.no_grad() outside
+            real_action=action
+            safe_action = env.get_safe_action(action)
+            state,next_state,reward, done = env.step(safe_action)
+
+            episode_reward += reward
+            episode_unbalance += env.real_unbalance
+            episode_cost += env.operation_cost
+            state = next_state
+        cumulate_reward += episode_reward
+        cumulate_cost += episode_cost
+        cumulate_unbalance += episode_unbalance
+        record_reward.append(cumulate_reward)
+        record_cost.append(cumulate_cost/1000)
+        record_unbalance.append(cumulate_unbalance/1000)
+
+        record={'init_info':record_init_info,'reward':record_reward,'cost':record_cost,'unbalance':record_unbalance}
+    return record
+
 def test_ten_episodes_MIP(state1, env1, act, device):
     '''to get evaluate information, here record the unblance of after taking action'''
     record_reward=[]
@@ -310,6 +352,26 @@ def get_episode_return(env, act, device):
         if done:
             break
     return episode_return,episode_unbalance/1000,episode_cost/1000
+
+def get_episode_return_safe(env, act, device):
+    episode_return = 0.0  # sum of rewards in an episode
+    episode_unbalance=0.0
+    episode_cost = 0.0
+    state = env.reset()
+    for i in range(24):
+        s_tensor = torch.as_tensor((state,), device=device)
+        a_tensor = act(s_tensor)
+        action = a_tensor.detach().cpu().numpy()[0]  # not need detach(), because with torch.no_grad() outside
+        safe_action = env.get_safe_action(action)
+        state, next_state, reward, done,= env.step(safe_action)
+        state=next_state
+        episode_return += reward
+        episode_unbalance+=env.real_unbalance
+        episode_cost += env.operation_cost
+        if done:
+            break
+    return episode_return,episode_unbalance/1000,episode_cost/1000
+
 class ReplayBuffer:
     def __init__(self, max_len, state_dim, action_dim, gpu_id=0):
         self.now_len = 0
