@@ -1,16 +1,15 @@
 
-# ------------------------------------------------------------------------
-# Energy management environment for reinforcement learning agents developed by
-# Hou Shengren, TU Delft, h.shengren@tudelft.nl
+
 import random
 import numpy as np
 import pandas as pd
 import gym
 from gym import spaces
 import pyomo.environ as pyo
+import os
 
 from Parameters import battery_parameters,dg_parameters
-
+os.environ['GUROBI_HOME'] = 'F:\\gurobi\\win64'
 class Constant:
 	MONTHS_LEN = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 	MAX_STEP_HOURS = 24 * 30
@@ -166,6 +165,9 @@ class ESSEnv(gym.Env):
         electricity_demand = self.data_manager.get_electricity_cons_data(self.month, self.day, self.current_time)
         pv_generation = self.data_manager.get_pv_data(self.month, self.day, self.current_time)
         price = self.data_manager.get_price_data(self.month, self.day, self.current_time) / self.Price_max
+        self.electricity_demand = electricity_demand
+        self.pv_generation = pv_generation
+        self.price = price
         dg1_output = float(self.dg1.current_output)  # 转换为Python float
         dg2_output = float(self.dg2.current_output)
         dg3_output = float(self.dg3.current_output)
@@ -178,8 +180,8 @@ class ESSEnv(gym.Env):
         power_output_max2 = 375
         power_output_max3 = 500
         power_output_min1 = 10
-        power_output_min2 = 50
-        power_output_min3 = 100
+        power_output_min2 = 10
+        power_output_min3 = 10
         exchange_ability = 100
         max_charge = 100
         current_capacity = float(self.battery.SOC())
@@ -229,7 +231,7 @@ class ESSEnv(gym.Env):
         def obj_rule(m):
             return sum((m.action[i]-action[i])**2 for i in m.N)
         m.obj = pyo.Objective(expr=obj_rule, sense=pyo.minimize)
-        pyo.SolverFactory('gurobi').solve(m, tee=False) # Gurobi求解器在不可行时仍保存最近可行解
+        results = pyo.SolverFactory('gurobi').solve(m, tee=False) # Gurobi求解器在不可行时仍保存最近可行解
 
         '''here we need to check the printed model for each constrain, are they satisfied for the real part'''
         unbalance = (
@@ -241,8 +243,7 @@ class ESSEnv(gym.Env):
                 - (m.max_charge * pyo.value(m.action[0]))
         )
 
-        # 提取安全动作
-        safe_action = [pyo.value(m.action[i]) for i in m.N]
+
         # print(f"safe当前时刻参数：\n"
         #       f"DG1当前输出：{pyo.value(m.action[1]) * m.ramp1 + m.dg1} | \n"
         #       f"DG2当前输出：{pyo.value(m.action[2]) * m.ramp2 + m.dg2} | \n"
@@ -252,8 +253,39 @@ class ESSEnv(gym.Env):
         #       f"电池输出：{m.max_charge * pyo.value(m.action[0])}\n"
         #       f"初始动作值：{safe_action}")
         # print(f"safe不平衡度{unbalance}")
+        # print(f"obj:{pyo.value(m.obj)}")
+        # print(f"unbalance:{unbalance}")
+        flag = 0
+        if results.solver.termination_condition == pyo.TerminationCondition.infeasible or results.solver.termination_condition == pyo.TerminationCondition.unbounded:
+            flag = 1
+            print("求解失败")
+            if pyo.value(m.action[1]*m.ramp1 + m.dg1 + m.action[2]*m.ramp2 + m.dg2 + m.action[3]*m.ramp3 + m.dg3
+                                                + pv_generation - electricity_demand - (m.max_charge*m.action[0])) >= m.exchange_ability:
+                # 强制各机组降到最低出力
+                m.action[1].value = max((m.power_output_min1 - m.dg1)/m.ramp1, -1.0)
+                m.action[2].value = max((m.power_output_min2 - m.dg2)/m.ramp2, -1.0)
+                m.action[3].value = max((m.power_output_min3 - m.dg3)/m.ramp3, -1.0)
+            elif pyo.value(m.action[1]*m.ramp1 + m.dg1 + m.action[2]*m.ramp2 + m.dg2 + m.action[3]*m.ramp3 + m.dg3
+                                                + pv_generation - electricity_demand - (m.max_charge*m.action[0])) <= -m.exchange_ability:
+                # 强制各机组升到最高出力
+                m.action[1].value = min((m.power_output_max1 - m.dg1) / m.ramp1, 1.0)
+                m.action[2].value = min((m.power_output_max2 - m.dg2) / m.ramp2, 1.0)
+                m.action[3].value = min((m.power_output_max3 - m.dg3) / m.ramp3, 1.0)
+            print(f"dg1_origin:{pyo.value(m.dg1)}")
+            print(f"dg2_origin:{pyo.value(m.dg2)}")
+            print(f"dg3_origin:{pyo.value(m.dg3)}")
+            print(f"dg1:{pyo.value(m.action[1]*m.ramp1 + m.dg1)}")
+            print(f"dg2:{pyo.value(m.action[2]*m.ramp2 + m.dg2)}")
+            print(f"dg3:{pyo.value(m.action[3]*m.ramp3 + m.dg3)}")
+            print(f"battery:{pyo.value((m.max_charge*m.action[0] + m.current_capacity*m.capacity)/m.capacity)}")
+            print(f"battery_power:{pyo.value(m.max_charge*m.action[0])}")
+            print(f"pv:{pv_generation}")
+            print(f"demand:{electricity_demand}")
+            print(f"dg_action:f{m.action[1].value},{m.action[2].value},{m.action[3].value}")
 
-        return np.array(safe_action)
+        # 提取安全动作
+        safe_action = [pyo.value(m.action[i]) for i in m.N]
+        return np.array(safe_action), flag
 
 
     def _build_state(self):

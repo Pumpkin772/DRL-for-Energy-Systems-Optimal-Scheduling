@@ -255,7 +255,7 @@ def plot_training_unbalanceinfo(name, datasource, color):
     mean_rewards = np.mean(all_train_unbalance, axis=0)
     sem_rewards = np.std(all_train_unbalance, axis=0) / np.sqrt(all_train_unbalance.shape[0])
     episodes = []
-    for i in range(400):
+    for i in range(50):
         episodes.append(i)
     plt.rcParams["figure.figsize"] = (16, 9)  # 设置图表的大小为16x9英寸
     plt.autoscale(tight=True)

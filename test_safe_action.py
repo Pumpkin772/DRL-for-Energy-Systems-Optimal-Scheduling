@@ -103,7 +103,7 @@ if __name__=='__main__':
                     if i_episode % 10 == 0:
                         # target_step
                         with torch.no_grad():
-                            trajectory = agent.explore_env(env, target_step)
+                            trajectory = agent.explore_env_safe(env, target_step)
                             steps, r_exp = update_buffer(trajectory)
             all_seeds_reward_record[seed] = reward_record
         loss_record_path = f'{args.cwd}/loss_data.pkl'
@@ -125,7 +125,8 @@ if __name__=='__main__':
         args.cwd = agent_name
         agent.act.load_state_dict(torch.load(act_save_path))
         print('parameters have been reload and test')
-        record = test_ten_episodes_safe(env, agent.act, agent.device)
+        state = env.reset()
+        record = test_ten_episodes_safe(state, env, agent.act, agent.device)
         print(record)
         #eval_data = pd.DataFrame(record['information'])
         #eval_data.columns = ['time_step', 'price', 'netload', 'action', 'real_action', 'soc', 'battery', 'gen1', 'gen2',

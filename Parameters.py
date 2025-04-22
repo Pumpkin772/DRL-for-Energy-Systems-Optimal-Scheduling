@@ -15,18 +15,18 @@ dg_parameters={
 ,'b': 3 
 ,'c':30
 ,'d': 0.03,'e':4.2,'f': 0.031,'power_output_max':150,'power_output_min':10,'heat_output_max':None,'heat_output_min':None,\
-'ramping_up':100,'ramping_down':100,'min_up':2,'min_down':1},
+'ramping_up':100,'ramping_down':200,'min_up':2,'min_down':1},
 
 'gen_2':{'a':0.001
 ,'b': 10
 ,'c': 40
-,'d': 0.03,'e':4.2,'f': 0.031,'power_output_max':375,'power_output_min':50,'heat_output_max':None,'heat_output_min':None,\
-    'ramping_up':100,'ramping_down':100,'min_up':2,'min_down':1},
+,'d': 0.03,'e':4.2,'f': 0.031,'power_output_max':375,'power_output_min':10,'heat_output_max':None,'heat_output_min':None,\
+    'ramping_up':100,'ramping_down':200,'min_up':2,'min_down':1},
 
 'gen_3':{'a':0.001
 ,'b': 15
 ,'c': 70
-,'d': 0.03,'e':4.2,'f': 0.031,'power_output_max':500,'power_output_min':100,'heat_output_max':None,'heat_output_min':None,\
+,'d': 0.03,'e':4.2,'f': 0.031,'power_output_max':500,'power_output_min':10,'heat_output_max':None,'heat_output_min':None,\
     'ramping_up':200,'ramping_down':200,'min_up':2,'min_down':1}}
 
 

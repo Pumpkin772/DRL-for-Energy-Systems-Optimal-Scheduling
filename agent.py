@@ -57,9 +57,17 @@ class AgentBase:
         state = self.state
         for _ in range(target_step):
             action = self.select_action(state)
-            safe_action = env.get_safe_action(action)
+            safe_action, flag = env.get_safe_action(action)
             state, next_state, reward, done, = env.step(safe_action)
-
+            if flag == 1:
+                print(f"dg1:{env.dg1.current_output}")
+                print(f"dg2:{env.dg2.current_output}")
+                print(f"dg3:{env.dg3.current_output}")
+                print(f"battery:{env.battery.SOC()}")
+                print(f"battery_power:{env.battery.energy_change}")
+                print(f"unbalance:{env.real_unbalance}")
+                print(f"load:{env.electricity_demand}")
+                print(f"pv:{env.pv_generation}")
             trajectory.append((state, (reward, done, *safe_action)))
             state = env.reset() if done else next_state
         self.state = state

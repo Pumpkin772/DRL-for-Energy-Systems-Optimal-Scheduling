@@ -1,4 +1,8 @@
 import pyomo.environ as pyo
+import os
+
+os.environ['GUROBI_HOME'] = 'F:\\gurobi\\win64'  # 替换为你的 Gurobi 安装路径
+print("GUROBI_HOME:", os.environ['GUROBI_HOME'])
 # 创建一个模型
 model = pyo.ConcreteModel()
 

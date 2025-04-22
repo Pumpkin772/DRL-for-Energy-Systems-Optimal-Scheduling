@@ -111,7 +111,7 @@ class Arguments:
         self.num_threads = 8  # cpu_num for evaluate model, torch.set_num_threads(self.num_threads)
 
         '''Arguments for training'''
-        self.num_episode=50
+        self.num_episode=100
         self.gamma = 0.995  # discount factor of future rewards
         # self.reward_scale = 1  # an approximate target reward usually be closed to 256
         self.learning_rate = 1e-4  # 2 ** -14 ~= 6e-5
@@ -128,8 +128,8 @@ class Arguments:
         # self.eval_gap = 2 ** 6  # evaluate the agent per eval_gap seconds
         # self.eval_times = 2  # number of times that get episode return in first
         self.random_seed = 0  # initialize random seed in self.init_before_training()
-        self.random_seed_list=[1234,2234,3234,4234,5234]
-        #self.random_seed_list = [1234]
+        #self.random_seed_list=[1234,2234,3234,4234,5234]
+        self.random_seed_list = [1234]
         '''Arguments for save and plot issues'''
         self.train=True
         self.save_network=True
